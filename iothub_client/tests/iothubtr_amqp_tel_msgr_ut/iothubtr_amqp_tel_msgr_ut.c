@@ -1314,6 +1314,8 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
     else
     {
         STRICT_EXPECTED_CALL(singlylinkedlist_foreach(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(singlylinkedlist_find(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(singlylinkedlist_remove(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
         set_expected_calls_free_task();
         STRICT_EXPECTED_CALL(message_destroy(IGNORED_PTR_ARG));
     }
