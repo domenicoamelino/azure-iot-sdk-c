@@ -361,6 +361,41 @@ typedef struct MESSENGER_DO_WORK_EXP_CALL_PROFILE_STRUCT
     SEND_PENDING_EVENTS_TEST_CONFIG *send_pending_events_test_config;
 } MESSENGER_DO_WORK_EXP_CALL_PROFILE;
 
+
+//
+//  Tests zero messages available in queue
+//
+static SEND_PENDING_EVENTS_TEST_CONFIG test_send_zero_message_config = {
+    100,
+    NULL,
+    0,
+    true,
+    NULL,
+    0,
+};
+
+
+// 
+//  Tests sending exactly one message which is nowhere close to rollover logic 
+//
+static SEND_PENDING_TEST_EVENTS test_send_one_message_events[] = {
+    { 10, SEND_PENDING_EXPECT_ADD } 
+};
+
+static TEST_ON_SEND_COMPLETE_DATA test_send_one_message_expected_callbacks[] = {
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE }
+};
+
+
+static SEND_PENDING_EVENTS_TEST_CONFIG test_send_one_message_config = {
+    100,
+    test_send_one_message_events,
+    sizeof(test_send_one_message_events) / sizeof(test_send_one_message_events[0]),
+    true,
+    test_send_one_message_expected_callbacks,
+    sizeof(test_send_one_message_expected_callbacks) / sizeof(test_send_one_message_expected_callbacks[0]),
+};
+
 static MESSENGER_DO_WORK_EXP_CALL_PROFILE g_do_work_profile;
 
 static MESSENGER_DO_WORK_EXP_CALL_PROFILE* get_msgr_do_work_exp_call_profile(TELEMETRY_MESSENGER_STATE current_state, bool is_subscribed_for_messages, bool is_msg_rcvr_created, int wts_list_length, int ip_list_length, time_t current_time, size_t event_send_timeout_secs)
@@ -371,11 +406,11 @@ static MESSENGER_DO_WORK_EXP_CALL_PROFILE* get_msgr_do_work_exp_call_profile(TEL
     g_do_work_profile.in_progress_list_length = ip_list_length;
     g_do_work_profile.current_time = current_time;
     g_do_work_profile.send_event_timeout_secs = event_send_timeout_secs;
-    g_do_work_profile.send_pending_events_test_config = NULL;
 
     if (g_do_work_profile.current_state == TELEMETRY_MESSENGER_STATE_STARTING)
     {
         g_do_work_profile.create_message_sender = true;
+        g_do_work_profile.send_pending_events_test_config = NULL;
     }
     else if (g_do_work_profile.current_state == TELEMETRY_MESSENGER_STATE_STOPPING)
     {
@@ -385,6 +420,8 @@ static MESSENGER_DO_WORK_EXP_CALL_PROFILE* get_msgr_do_work_exp_call_profile(TEL
         {
             g_do_work_profile.destroy_message_receiver = true;
         }
+
+        g_do_work_profile.send_pending_events_test_config = NULL;
     }
     else if (g_do_work_profile.current_state == TELEMETRY_MESSENGER_STATE_STARTED)
     {
@@ -395,6 +432,15 @@ static MESSENGER_DO_WORK_EXP_CALL_PROFILE* get_msgr_do_work_exp_call_profile(TEL
         else if (!is_subscribed_for_messages && is_msg_rcvr_created)
         {
             g_do_work_profile.destroy_message_receiver = true;
+        }
+
+        if (wts_list_length >= 1)
+        {
+            g_do_work_profile.send_pending_events_test_config = &test_send_one_message_config;
+        }
+        else
+        {
+            g_do_work_profile.send_pending_events_test_config = &test_send_zero_message_config;
         }
     }
 
@@ -1049,27 +1095,6 @@ static void set_expected_calls_for_send_batched_message_and_reset_state(time_t c
 
 BINARY_DATA TEST_amqp_data = { NULL, 100 };
 
-// 
-//  Tests sending exactly one message which is nowhere close to rollover logic 
-//
-static SEND_PENDING_TEST_EVENTS test_send_one_message_events[] = {
-    { 10, SEND_PENDING_EXPECT_ADD } 
-};
-
-static TEST_ON_SEND_COMPLETE_DATA test_send_one_message_expected_callbacks[] = {
-    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE }
-};
-
-
-static SEND_PENDING_EVENTS_TEST_CONFIG test_send_one_message_config = {
-    100,
-    test_send_one_message_events,
-    sizeof(test_send_one_message_events) / sizeof(test_send_one_message_events[0]),
-    true,
-    test_send_one_message_expected_callbacks,
-    sizeof(test_send_one_message_expected_callbacks) / sizeof(test_send_one_message_expected_callbacks[0]),
-};
-
 
 // 
 //  Tests sending multiple messages that are just one byte shy of hitting a rollover
@@ -1254,6 +1279,11 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
 {
     if (NULL == test_config)
     {
+        return;
+    }
+    else if (0 == test_config->number_test_events)
+    {
+        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
         return;
     }
 
