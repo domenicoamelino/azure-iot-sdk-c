@@ -70,6 +70,8 @@ typedef struct TELEMETRY_MESSENGER_INSTANCE_TAG
     time_t last_message_receiver_state_change_time;
 } TELEMETRY_MESSENGER_INSTANCE;
 
+// MESSENGER_SEND_EVENT_CALLER_INFORMATION corresponds to a message sent from the API, including
+// the message and callback information to alert caller about what happened.
 typedef struct MESSENGER_SEND_EVENT_CALLER_INFORMATION_TAG
 {
     IOTHUB_MESSAGE_LIST* message;
@@ -77,9 +79,11 @@ typedef struct MESSENGER_SEND_EVENT_CALLER_INFORMATION_TAG
     void* context;
 } MESSENGER_SEND_EVENT_CALLER_INFORMATION;
 
+// MESSENGER_SEND_EVENT_TASK interfaces with underlying uAMQP layer.  It receives the callback
+// from this lower layer which is used to pass the results back to the API via the callback_list.
 typedef struct MESSENGER_SEND_EVENT_TASK_TAG
 {
-    SINGLYLINKEDLIST_HANDLE callback_list;
+    SINGLYLINKEDLIST_HANDLE callback_list;  // Type is MESSENGER_SEND_EVENT_CALLER_INFORMATION
     time_t send_time;
     TELEMETRY_MESSENGER_INSTANCE *messenger;
     bool is_timed_out;
@@ -1056,7 +1060,6 @@ static int create_send_pending_events_state(TELEMETRY_MESSENGER_INSTANCE* instan
     }
     else if (0 != (result = message_set_message_format(send_pending_events_state->message_batch_container, 0x80013700)))
     {
-        /* Codes_SRS_EVENTHUBCLIENT_LL_01_083: [If message_set_message_format fails, the callback associated with the message shall be called with EVENTHUBCLIENT_CONFIRMATION_ERROR and the message shall be freed from the pending list.] */
         LogError("Failed setting the message format to batching format, result = %d", result);
     }
     else if (NULL == (send_pending_events_state->task = create_task(instance)))
@@ -1081,7 +1084,6 @@ static int send_batched_message_and_reset_state(TELEMETRY_MESSENGER_INSTANCE* in
 {
     int result;
 
-    // Overflow of maximum message size detected.  Send what we have and allocate fresh
     if (0 != (result = messagesender_send(instance->message_sender, send_pending_events_state->message_batch_container, internal_on_event_send_complete_callback, send_pending_events_state->task)))
     {
         LogError("messagesender_send failed, result=%d", result);
@@ -1178,20 +1180,21 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
             break;
         }
 
-        // Once we've added the caller_info to the task, don't directly 'invoke_callback_on_error' anymore directly.
+        // Once we've added the caller_info to the callback_list, don't directly 'invoke_callback_on_error' anymore directly.
         // The task is responsible for running through its callers for callbacks, even for errors in this function.
         if (body_binary_data.length + send_pending_events_state.bytes_pending > max_messagesize)
         {
             // If we tried to add the current message, we would overflow.  Send what we've queued immediately.
             if (RESULT_OK != (result = send_batched_message_and_reset_state(instance, &send_pending_events_state)))
             {
-                LogError("send_batched_message_and_reset_state failed");
+                LogError("send_batched_message_and_reset_state failed, result = %d", result);
                 break;
             }
 
+			// Now that we've given off the task to uAMQP layer, allocate a new task.
             if (0 != (result = create_send_pending_events_state(instance, &send_pending_events_state)))
             {
-                LogError("create_send_pending_events_state failed");
+                LogError("create_send_pending_events_state failed, result = %d", result);
                 break;
             }
         }
@@ -1203,14 +1206,13 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
         }
 
         send_pending_events_state.bytes_pending += body_binary_data.length;
-
     }
 
     if ((0 == result) && (send_pending_events_state.bytes_pending != 0))
     {
         if (RESULT_OK != (result = send_batched_message_and_reset_state(instance, &send_pending_events_state)))
         {
-            LogError("send_batched_message_and_reset_state failed");
+            LogError("send_batched_message_and_reset_state failed, result = %d", result);
         }
     }
 
@@ -1221,8 +1223,8 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
 
     if (NULL != send_pending_events_state.task)
     {
-        // BUGBUG _ need to remove from the move_event_to_in_progress_list() business....
         singlylinkedlist_foreach(send_pending_events_state.task->callback_list, invoke_callback, (void*)TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
+        remove_event_from_in_progress_list(send_pending_events_state.task);
         free_task(send_pending_events_state.task);
     }
 
