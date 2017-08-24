@@ -386,14 +386,13 @@ static TEST_ON_SEND_COMPLETE_DATA test_send_one_message_expected_callbacks[] = {
     { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE }
 };
 
-
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_one_message_config = {
     100,
     test_send_one_message_events,
     sizeof(test_send_one_message_events) / sizeof(test_send_one_message_events[0]),
     true,
     test_send_one_message_expected_callbacks,
-    sizeof(test_send_one_message_expected_callbacks) / sizeof(test_send_one_message_expected_callbacks[0]),
+    sizeof(test_send_one_message_expected_callbacks) / sizeof(test_send_one_message_expected_callbacks[0]), // BUGBUG - countof (?)
 };
 
 static MESSENGER_DO_WORK_EXP_CALL_PROFILE g_do_work_profile;
@@ -879,14 +878,14 @@ static void TEST_on_event_send_complete(IOTHUB_MESSAGE_LIST* message, TELEMETRY_
 
 // Verify_Expected_Callbacks comparares the actual data we received (built up during TEST_on_send_complete_data callbacks) to 
 // what the caller has specified in expected_on_send_complete_data
-void verify_expected_callbacks_received(TEST_ON_SEND_COMPLETE_DATA *expected_on_send_complete_data, int number_expected_on_send_complete_data)
+void verify_expected_callbacks_received(TEST_ON_SEND_COMPLETE_DATA *expected_on_send_complete_data, int number_expected_on_send_complete_data, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT expected_result)
 {
     ASSERT_ARE_EQUAL(int, number_expected_on_send_complete_data, TEST_number_test_on_send_complete_data);
 
     for (int i = 0; i < TEST_number_test_on_send_complete_data; i++)
     {
         ASSERT_ARE_EQUAL(void_ptr, TEST_on_send_complete_data[i].message, TEST_IOTHUB_MESSAGE_LIST_HANDLE);
-        ASSERT_ARE_EQUAL(int, TEST_on_send_complete_data[i].result, expected_on_send_complete_data[i].result);
+        ASSERT_ARE_EQUAL(int, TEST_on_send_complete_data[i].result, expected_result);
         ASSERT_ARE_EQUAL(void_ptr, TEST_on_send_complete_data[i].context, expected_on_send_complete_data[i].context);
     }
 }
@@ -1052,18 +1051,23 @@ static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_lis
     }
 }
 
-static void set_expected_calls_free_task()
+static void set_expected_calls_free_task(int number_callbacks)
 {
     STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(singlylinkedlist_remove(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-    EXPECTED_CALL(free(IGNORED_PTR_ARG));
 
-    STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
+    for (int i = 0; i < number_callbacks; i++)
+    {
+        STRICT_EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+        STRICT_EXPECTED_CALL(singlylinkedlist_remove(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        EXPECTED_CALL(free(IGNORED_PTR_ARG));
+
+        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
+    }
+
     EXPECTED_CALL(free(IGNORED_PTR_ARG));
 }
 
-static void set_expected_calls_for_on_message_send_complete()
+static void set_expected_calls_for_on_message_send_complete(int number_callbacks)
 {
     STRICT_EXPECTED_CALL(singlylinkedlist_foreach(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
 
@@ -1072,7 +1076,7 @@ static void set_expected_calls_for_on_message_send_complete()
         .IgnoreArgument_match_function();
     STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG)).IgnoreArgument_item_handle();
 
-    set_expected_calls_free_task();
+    set_expected_calls_free_task(number_callbacks);
 }
 
 static void set_expected_calls_for_create_send_pending_events_state()
@@ -1112,13 +1116,26 @@ static SEND_PENDING_TEST_EVENTS test_send_just_under_rollover_events[] = {
     { 10, SEND_PENDING_EXPECT_ADD },
 };
 
+static TEST_ON_SEND_COMPLETE_DATA test_send_just_under_rollover_config_callbacks[] = {
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+    { NULL, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK, TEST_IOTHUB_CLIENT_HANDLE },
+};
+
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_just_under_rollover_config = {
     100,
     test_send_just_under_rollover_events,
     sizeof(test_send_just_under_rollover_events) / sizeof(test_send_just_under_rollover_events[0]),
     true,
-    NULL,
-    0
+    test_send_just_under_rollover_config_callbacks,
+    sizeof(test_send_just_under_rollover_config_callbacks) / sizeof(test_send_just_under_rollover_config_callbacks[0]),
 };
 
 //
@@ -1277,6 +1294,8 @@ static SEND_PENDING_EVENTS_TEST_CONFIG test_send_middle_message_too_big_and_roll
 // Note: This does NOT handle roll-over test paths.  These are handled with different test path.
 static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PENDING_EVENTS_TEST_CONFIG *test_config, time_t current_time)
 {
+    bool callback_cleanup_needed = false;
+
     if (NULL == test_config)
     {
         return;
@@ -1315,6 +1334,8 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
         {
             continue;
         }
+
+        callback_cleanup_needed = true;
         
         STRICT_EXPECTED_CALL(singlylinkedlist_add(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
 
@@ -1346,7 +1367,7 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
         STRICT_EXPECTED_CALL(singlylinkedlist_foreach(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
         STRICT_EXPECTED_CALL(singlylinkedlist_find(IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
         STRICT_EXPECTED_CALL(singlylinkedlist_remove(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-        set_expected_calls_free_task();
+        set_expected_calls_free_task(callback_cleanup_needed ? 1 : 0);
         STRICT_EXPECTED_CALL(message_destroy(IGNORED_PTR_ARG));
     }
 }
@@ -2572,8 +2593,9 @@ static void test_send_events_for_callbacks(MESSAGE_SEND_RESULT message_send_resu
     // arrange
     TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
     TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
+    TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT expected_result = (MESSAGE_SEND_OK == message_send_result) ? TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK : TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING;
 
-    send_events(handle, 1);
+    send_events(handle, test_config->number_test_events);
 
     time_t current_time = time(NULL);
     MESSENGER_DO_WORK_EXP_CALL_PROFILE *mdwp = get_msgr_do_work_exp_call_profile(TELEMETRY_MESSENGER_STATE_STARTED, false, false, 1, 0, current_time, DEFAULT_EVENT_SEND_TIMEOUT_SECS);
@@ -2582,7 +2604,7 @@ static void test_send_events_for_callbacks(MESSAGE_SEND_RESULT message_send_resu
     crank_telemetry_messenger_do_work(handle, mdwp);
 
     umock_c_reset_all_calls();
-    set_expected_calls_for_on_message_send_complete();
+    set_expected_calls_for_on_message_send_complete(test_config->number_test_events);
 
     // act
     ASSERT_IS_NOT_NULL(saved_messagesender_send_on_message_send_complete);
@@ -2592,7 +2614,7 @@ static void test_send_events_for_callbacks(MESSAGE_SEND_RESULT message_send_resu
     // assert
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
     
-    verify_expected_callbacks_received(test_config->expected_on_send_complete_data, test_config->number_expected_on_send_complete_data);
+    verify_expected_callbacks_received(test_config->expected_on_send_complete_data, test_config->number_expected_on_send_complete_data, expected_result);
 
     // cleanup
     telemetry_messenger_destroy(handle);
@@ -2606,37 +2628,17 @@ TEST_FUNCTION(telemetry_messenger_do_work_on_event_send_complete_OK)
     test_send_events_for_callbacks(MESSAGE_SEND_OK, &test_send_one_message_config);
 }
 
+TEST_FUNCTION(telemetry_messenger_do_work_on_multiple_callbacks_OK)
+{
+    test_send_events_for_callbacks(MESSAGE_SEND_OK, &test_send_just_under_rollover_config);
+}
+
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_108: [If a failure occurred, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING]  
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_128: [`task` shall be removed from `instance->in_progress_list`]  
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [`task` shall be destroyed using free()]  
 TEST_FUNCTION(telemetry_messenger_do_work_on_event_send_complete_ERROR)
 {
-    // arrange
-    TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
-    TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
-
-    send_events(handle, 1);
-
-    time_t current_time = time(NULL);
-    MESSENGER_DO_WORK_EXP_CALL_PROFILE *mdwp = get_msgr_do_work_exp_call_profile(TELEMETRY_MESSENGER_STATE_STARTED, false, false, 1, 0, current_time, DEFAULT_EVENT_SEND_TIMEOUT_SECS);
-    crank_telemetry_messenger_do_work(handle, mdwp);
-
-    umock_c_reset_all_calls();
-    set_expected_calls_for_on_message_send_complete();
-
-    // act
-    ASSERT_IS_NOT_NULL(saved_messagesender_send_on_message_send_complete);
-
-    saved_messagesender_send_on_message_send_complete(saved_messagesender_send_callback_context, MESSAGE_SEND_ERROR);
-
-    // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    // ASSERT_ARE_EQUAL(void_ptr, TEST_IOTHUB_MESSAGE_LIST_HANDLE, TEST_on_event_send_complete_message);
-    // ASSERT_ARE_EQUAL(int, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING, TEST_on_event_send_complete_result);
-    // ASSERT_ARE_EQUAL(void_ptr, TEST_IOTHUB_CLIENT_HANDLE, TEST_on_event_send_complete_context);
-
-    // cleanup
-    telemetry_messenger_destroy(handle);
+    test_send_events_for_callbacks(MESSAGE_SEND_ERROR, &test_send_one_message_config);
 }
 
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_155: [If message_create_from_iothub_message() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE]  
