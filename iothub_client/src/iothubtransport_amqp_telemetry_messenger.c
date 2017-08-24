@@ -972,7 +972,10 @@ static void invoke_callback(const void* item, const void* action_context, bool* 
 
     if (NULL != caller_info->on_event_send_complete_callback)
     {
+#pragma warning(push)
+#pragma warning(disable:4305) // Allow typecasting to smaller type on 64 bit systems, since we control ultimate caller.
         TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT messenger_send_result = (TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT)action_context;
+#pragma warning(pop)
         caller_info->on_event_send_complete_callback(caller_info->message, messenger_send_result, caller_info->context);
     }
     *continue_processing = true;
@@ -1001,7 +1004,8 @@ static void internal_on_event_send_complete_callback(void* context, MESSAGE_SEND
                     messenger_send_result = TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING;
                 }
 
-                singlylinkedlist_foreach(task->callback_list, invoke_callback, (void*)messenger_send_result);
+                // Initially typecast to a size_t to avoid 64 bit compiler warnings on casting of void* to larger type.
+                singlylinkedlist_foreach(task->callback_list, invoke_callback, (void*)((size_t)messenger_send_result));
             }
             else
             {
