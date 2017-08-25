@@ -389,10 +389,10 @@ static TEST_ON_SEND_COMPLETE_DATA test_send_one_message_expected_callbacks[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_one_message_config = {
     100,
     test_send_one_message_events,
-    sizeof(test_send_one_message_events) / sizeof(test_send_one_message_events[0]),
+    COUNT_OF(test_send_one_message_events),
     true,
     test_send_one_message_expected_callbacks,
-    sizeof(test_send_one_message_expected_callbacks) / sizeof(test_send_one_message_expected_callbacks[0]), // BUGBUG - countof (?)
+    COUNT_OF(test_send_one_message_expected_callbacks),
 };
 
 static MESSENGER_DO_WORK_EXP_CALL_PROFILE g_do_work_profile;
@@ -975,6 +975,30 @@ static void set_expected_calls_for_message_sender_destroy()
     STRICT_EXPECTED_CALL(link_destroy(TEST_EVENT_SENDER_LINK_HANDLE));
 }
 
+static void set_expected_calls_for_copy_events_from_in_progress_to_waiting_list(int in_progress_list_length)
+{
+    STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
+
+    int i;
+    for (i = 0; i < in_progress_list_length; i++)
+    {
+        EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+
+        if (i < (in_progress_list_length - 1))
+        {
+            EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
+            EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+            EXPECTED_CALL(singlylinkedlist_add(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
+            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
+        }
+        else
+        {
+            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
+        }
+    }
+}
+
 static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_list_length, int in_progress_list_length, bool destroy_message_receiver)
 {
     set_expected_calls_for_message_sender_destroy();
@@ -991,23 +1015,23 @@ static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_lis
     }
     else
     {
-        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
+		STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
 
-        int i;
-        for (i = 0; i < in_progress_list_length; i++)
-        {
-            EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-            // por fazer: adicionar codigo para remover items prescritos.
+		int i;
+		for (i = 0; i < in_progress_list_length; i++)
+		{
+			EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+			// por fazer: adicionar codigo para remover items prescritos.
 
-            if (i < (in_progress_list_length - 1))
-            {
-                EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
-            }
-            else
-            {
-                EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
-            }
-        }
+			if (i < (in_progress_list_length - 1))
+			{
+				EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
+			}
+			else
+			{
+				EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
+			}
+		}
     }
 
     // Move events to wts list
@@ -1025,6 +1049,8 @@ static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_lis
         STRICT_EXPECTED_CALL(singlylinkedlist_create()).SetReturn(new_wts_list);
 
         // Moving in_progress_list items to the new wts list.
+        set_expected_calls_for_copy_events_from_in_progress_to_waiting_list(in_progress_list_length);
+
         STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
         int i;
         for (i = 0; i < in_progress_list_length; i++)
@@ -1132,10 +1158,10 @@ static TEST_ON_SEND_COMPLETE_DATA test_send_just_under_rollover_config_callbacks
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_just_under_rollover_config = {
     100,
     test_send_just_under_rollover_events,
-    sizeof(test_send_just_under_rollover_events) / sizeof(test_send_just_under_rollover_events[0]),
+    COUNT_OF(test_send_just_under_rollover_events),
     true,
     test_send_just_under_rollover_config_callbacks,
-    sizeof(test_send_just_under_rollover_config_callbacks) / sizeof(test_send_just_under_rollover_config_callbacks[0]),
+    COUNT_OF(test_send_just_under_rollover_config_callbacks),
 };
 
 //
@@ -1157,7 +1183,7 @@ static SEND_PENDING_TEST_EVENTS test_send_rollover_events[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_rollover_config = {
     100,
     test_send_rollover_events,
-    sizeof(test_send_rollover_events) / sizeof(test_send_rollover_events[0]),
+    COUNT_OF(test_send_rollover_events),
     true,
     NULL,
     0
@@ -1175,7 +1201,7 @@ static SEND_PENDING_TEST_EVENTS test_send_rollover_one_message_after_events[] = 
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_rollover_one_message_after_config = {
     100,
     test_send_rollover_one_message_after_events,
-    sizeof(test_send_rollover_one_message_after_events) / sizeof(test_send_rollover_one_message_after_events[0]),
+    COUNT_OF(test_send_rollover_one_message_after_events),
     true,
     NULL,
     0
@@ -1195,7 +1221,7 @@ static SEND_PENDING_TEST_EVENTS test_send_rollover_multiple_messages_after_event
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_rollover_multiple_messages_after_config = {
     100,
     test_send_rollover_multiple_messages_after_events,
-    sizeof(test_send_rollover_multiple_messages_after_events) / sizeof(test_send_rollover_multiple_messages_after_events[0]),
+    COUNT_OF(test_send_rollover_multiple_messages_after_events),
     true,
     NULL,
     0
@@ -1213,7 +1239,7 @@ static SEND_PENDING_TEST_EVENTS test_send_only_message_too_big_events[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_only_message_too_big_config = {
     100,
     test_send_only_message_too_big_events,
-    sizeof(test_send_only_message_too_big_events) / sizeof(test_send_only_message_too_big_events[0]),
+    COUNT_OF(test_send_only_message_too_big_events),
     false,
     NULL,
     0
@@ -1230,7 +1256,7 @@ static SEND_PENDING_TEST_EVENTS test_send_first_message_too_big_events[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_first_message_too_big_config = {
     100,
     test_send_first_message_too_big_events,
-    sizeof(test_send_first_message_too_big_events) / sizeof(test_send_first_message_too_big_events[0]),
+    COUNT_OF(test_send_first_message_too_big_events),
     true,
     NULL,
     0
@@ -1247,7 +1273,7 @@ static SEND_PENDING_TEST_EVENTS test_send_last_message_too_big_events[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_last_message_too_big_config = {
     100,
     test_send_last_message_too_big_events,
-    sizeof(test_send_last_message_too_big_events) / sizeof(test_send_last_message_too_big_events[0]),
+    COUNT_OF(test_send_last_message_too_big_events),
     true,
     NULL,
     0
@@ -1265,7 +1291,7 @@ static SEND_PENDING_TEST_EVENTS test_send_middle_message_too_big_events[] = {
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_middle_message_too_big_config = {
     100,
     test_send_middle_message_too_big_events,
-    sizeof(test_send_middle_message_too_big_events) / sizeof(test_send_middle_message_too_big_events[0]),
+    COUNT_OF(test_send_middle_message_too_big_events),
     true,
     NULL,
     0
@@ -1283,7 +1309,7 @@ static SEND_PENDING_TEST_EVENTS test_send_middle_message_too_big_and_rollover_ev
 static SEND_PENDING_EVENTS_TEST_CONFIG test_send_middle_message_too_big_and_rollover_config = {
     100,
     test_send_middle_message_too_big_and_rollover_events,
-    sizeof(test_send_middle_message_too_big_and_rollover_events) / sizeof(test_send_middle_message_too_big_and_rollover_events[0]),
+    COUNT_OF(test_send_middle_message_too_big_and_rollover_events),
     true,
     NULL,
     0
