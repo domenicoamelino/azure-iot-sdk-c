@@ -847,6 +847,45 @@ static int copy_events_to_list(SINGLYLINKEDLIST_HANDLE from_list, SINGLYLINKEDLI
     return result;
 }
 
+static int copy_events_from_in_progress_to_waiting_list(TELEMETRY_MESSENGER_INSTANCE* instance, SINGLYLINKEDLIST_HANDLE to_list)
+{
+    int result;
+    LIST_ITEM_HANDLE list_task_item;
+
+    result = RESULT_OK;
+    list_task_item = singlylinkedlist_get_head_item(instance->in_progress_list);
+
+    while (list_task_item != NULL)
+    {
+        MESSENGER_SEND_EVENT_TASK* task = (MESSENGER_SEND_EVENT_TASK*)singlylinkedlist_item_get_value(list_task_item);
+        
+        LIST_ITEM_HANDLE list_caller_item;
+        
+        list_caller_item = singlylinkedlist_get_head_item(task->callback_list);
+        
+        while (list_caller_item != NULL)
+        {
+            MESSENGER_SEND_EVENT_CALLER_INFORMATION* caller_information = (MESSENGER_SEND_EVENT_CALLER_INFORMATION*)singlylinkedlist_item_get_value(list_caller_item);
+            
+            if (singlylinkedlist_add(to_list, caller_information) == NULL)
+            {
+                LogError("Failed copying event to destination list (singlylinkedlist_add failed)");
+                result = __FAILURE__;
+                break;
+            }
+            else
+            {
+                list_caller_item = singlylinkedlist_get_next_item(list_caller_item);
+            }
+        }
+        
+        list_task_item = singlylinkedlist_get_next_item(list_task_item);
+    }
+
+    return result;
+}
+
+
 static int singlylinkedlist_clear(SINGLYLINKEDLIST_HANDLE list)
 {
     int result;
@@ -889,7 +928,7 @@ static int move_events_to_wait_to_send_list(TELEMETRY_MESSENGER_INSTANCE* instan
         {
             SINGLYLINKEDLIST_HANDLE new_in_progress_list;
         
-            if (copy_events_to_list(instance->in_progress_list, new_wait_to_send_list) != RESULT_OK)
+            if (copy_events_from_in_progress_to_waiting_list(instance, new_wait_to_send_list) != RESULT_OK)
             {
                 LogError("Failed moving events back to wait_to_send list (failed adding in_progress_list items to new_wait_to_send_list)");
                 singlylinkedlist_destroy(new_wait_to_send_list);
@@ -1043,8 +1082,6 @@ static MESSENGER_SEND_EVENT_CALLER_INFORMATION* get_next_caller_message_to_send(
     return caller_info;
 }
 
-
-
 typedef struct SEND_PENDING_EVENTS_STATE_TAG
 {
     MESSENGER_SEND_EVENT_TASK* task;
@@ -1195,7 +1232,7 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
                 break;
             }
 
-			// Now that we've given off the task to uAMQP layer, allocate a new task.
+            // Now that we've given off the task to uAMQP layer, allocate a new task.
             if (0 != (result = create_send_pending_events_state(instance, &send_pending_events_state)))
             {
                 LogError("create_send_pending_events_state failed, result = %d", result);
@@ -1646,10 +1683,6 @@ int telemetry_messenger_start(TELEMETRY_MESSENGER_HANDLE messenger_handle, SESSI
 
 int telemetry_messenger_stop(TELEMETRY_MESSENGER_HANDLE messenger_handle)
 {
-    // BUGBUG - I don't understand why telemetry_messenger_stop() moves the items between lists...
-    (void)messenger_handle;
-#if 0
-
     int result;
 
     // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_057: [If `messenger_handle` is NULL, telemetry_messenger_stop() shall fail and return a non-zero value]
@@ -1697,9 +1730,6 @@ int telemetry_messenger_stop(TELEMETRY_MESSENGER_HANDLE messenger_handle)
     }
 
     return result;
-#else
-    return 0;
-#endif
 }
 
 // @brief
@@ -1841,10 +1871,6 @@ void telemetry_messenger_do_work(TELEMETRY_MESSENGER_HANDLE messenger_handle)
 
 void telemetry_messenger_destroy(TELEMETRY_MESSENGER_HANDLE messenger_handle)
 {
-    // BUGBUG - I don't understand why telemetry_messenger_stop() moves the items between lists...
-    (void)messenger_handle;
-#if 0
-
     // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_109: [If `messenger_handle` is NULL, telemetry_messenger_destroy() shall fail and return]
     if (messenger_handle == NULL)
     {
@@ -1873,21 +1899,21 @@ void telemetry_messenger_destroy(TELEMETRY_MESSENGER_HANDLE messenger_handle)
 
             if (task != NULL)
             {
-                task->on_event_send_complete_callback(task->message, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_MESSENGER_DESTROYED, (void*)task->context);
+                singlylinkedlist_foreach(task->callback_list, invoke_callback, (void*)TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_MESSENGER_DESTROYED);
                 free_task(task);
             }
         }
 
         while ((list_node = singlylinkedlist_get_head_item(instance->waiting_to_send)) != NULL)
         {
-            MESSENGER_SEND_EVENT_TASK* task = (MESSENGER_SEND_EVENT_TASK*)singlylinkedlist_item_get_value(list_node);
+            MESSENGER_SEND_EVENT_CALLER_INFORMATION* caller_info = (MESSENGER_SEND_EVENT_CALLER_INFORMATION*)singlylinkedlist_item_get_value(list_node);
 
             (void)singlylinkedlist_remove(instance->waiting_to_send, list_node);
 
-            if (task != NULL)
+            if (caller_info != NULL)
             {
-                task->on_event_send_complete_callback(task->message, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_MESSENGER_DESTROYED, (void*)task->context);
-                free_task(task);
+                caller_info->on_event_send_complete_callback(caller_info->message, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_MESSENGER_DESTROYED, (void*)caller_info->context);
+                free(caller_info);
             }
         }
 
@@ -1906,7 +1932,6 @@ void telemetry_messenger_destroy(TELEMETRY_MESSENGER_HANDLE messenger_handle)
         // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_114: [telemetry_messenger_destroy() shall destroy `instance` with free()]
         (void)free(instance);
     }
-#endif
 }
 
 TELEMETRY_MESSENGER_HANDLE telemetry_messenger_create(const TELEMETRY_MESSENGER_CONFIG* messenger_config, const char* product_info)
