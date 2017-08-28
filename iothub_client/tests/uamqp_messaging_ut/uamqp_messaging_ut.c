@@ -425,12 +425,26 @@ TEST_SUITE_INITIALIZE(TestClassInitialize)
     REGISTER_GLOBAL_MOCK_RETURN(amqpvalue_create_application_properties, TEST_AMQP_VALUE);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(amqpvalue_create_application_properties, 0);
 
-
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetContentTypeSystemProperty, NULL);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetContentEncodingSystemProperty, NULL);
     REGISTER_GLOBAL_MOCK_RETURN(properties_set_content_type, 0);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_set_content_type, 1);
-
     REGISTER_GLOBAL_MOCK_RETURN(properties_set_content_encoding, 0);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_set_content_encoding, 1);
+    REGISTER_GLOBAL_MOCK_RETURN(properties_get_content_type, 0);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_get_content_type, 1);
+    REGISTER_GLOBAL_MOCK_RETURN(properties_get_content_encoding, 0);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_get_content_encoding, 1);
+
+    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_SetMessageId, IOTHUB_MESSAGE_OK);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_SetMessageId, IOTHUB_MESSAGE_ERROR);
+    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_SetCorrelationId, IOTHUB_MESSAGE_OK);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_SetCorrelationId, IOTHUB_MESSAGE_ERROR);
+
+    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_SetContentTypeSystemProperty, IOTHUB_MESSAGE_OK);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_SetContentTypeSystemProperty, IOTHUB_MESSAGE_ERROR);
+    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_SetContentEncodingSystemProperty, IOTHUB_MESSAGE_OK);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_SetContentEncodingSystemProperty, IOTHUB_MESSAGE_ERROR);
     
 
     // Initialization of variables.
@@ -725,9 +739,10 @@ TEST_FUNCTION(message_create_from_iothub_message_BYTEARRAY_return_errors_fails)
 
         if ((i == 4) || // amqpvalue_destroy
              (i == 8) || // amqpvalue_destroy
-             (i == 17) || // amqpvalue_destroy
-             (i == 18) // amqpvalue_destroy
-            )
+             (i == 19) || // amqpvalue_destroy
+             (i == 21) || // amqpvalue_destroy
+             (i == 22) // amqpvalue_destroy
+           )
         {
             continue; // these lines have functions that do not return anything (void).
         }
@@ -738,7 +753,11 @@ TEST_FUNCTION(message_create_from_iothub_message_BYTEARRAY_return_errors_fails)
         result = create_amqp_message_data(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
         // assert
-        if ((i == 1) /*GetMessageId is optional*/ || (i == 5) /*GetCorrelationId is optional*/)
+        if ((i == 1) || // GetMessageId is optional
+            (i == 5) || //GetCorrelationId is optional
+            (i == 9) || // ContentType is optional 
+            (i == 11)   // ContentEncoding is optional
+           )
         {
             ASSERT_ARE_EQUAL(int, result, 0);
         }
@@ -783,8 +802,9 @@ TEST_FUNCTION(message_create_from_iothub_message_STRING_return_errors_fails)
         if ((i == 4) || // amqpvalue_destroy
              (i == 8) || // amqpvalue_destroy
              (i == 19) || // amqpvalue_destroy
-             (i == 21) // amqpvalue_destroy
-            )
+             (i == 21) || // amqpvalue_destroy
+             (i == 22) // amqpvalue_destroy
+           )
         {
             continue; // these lines have functions that do not return anything (void).
         }
