@@ -100,7 +100,7 @@ static int set_message_content_type_needed(IOTHUB_MESSAGE_HANDLE messageHandle, 
 
 	if (NULL != (content_type = IoTHubMessage_GetContentTypeSystemProperty(messageHandle)))
 	{
-		if (0 == (result = properties_set_content_type(uamqp_message_properties, content_type)))
+		if (0 != (result = properties_set_content_type(uamqp_message_properties, content_type)))
 		{
             LogError("Failed properties_set_content_type");
             result = __FAILURE__;
@@ -121,7 +121,7 @@ static int set_message_content_encoding_if_needed(IOTHUB_MESSAGE_HANDLE messageH
 
 	if (NULL != (content_encoding = IoTHubMessage_GetContentEncodingSystemProperty(messageHandle)))
 	{
-		if (0 == (result = properties_set_content_encoding(uamqp_message_properties, content_encoding)))
+		if (0 != (result = properties_set_content_encoding(uamqp_message_properties, content_encoding)))
 		{
             LogError("Failed properties_set_content_encoding"); // BUGBUG - do better at error reporting.
             result = __FAILURE__;

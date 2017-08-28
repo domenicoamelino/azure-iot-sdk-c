@@ -425,6 +425,14 @@ TEST_SUITE_INITIALIZE(TestClassInitialize)
     REGISTER_GLOBAL_MOCK_RETURN(amqpvalue_create_application_properties, TEST_AMQP_VALUE);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(amqpvalue_create_application_properties, 0);
 
+
+    REGISTER_GLOBAL_MOCK_RETURN(properties_set_content_type, 0);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_set_content_type, 1);
+
+    REGISTER_GLOBAL_MOCK_RETURN(properties_set_content_encoding, 0);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(properties_set_content_encoding, 1);
+    
+
     // Initialization of variables.
     TEST_MAP_KEYS = (char**)real_malloc(sizeof(char*) * 5);
     ASSERT_IS_NOT_NULL_WITH_MSG(TEST_MAP_KEYS, "Could not allocate memory for TEST_MAP_KEYS");
@@ -622,6 +630,58 @@ TEST_FUNCTION(message_create_from_iothub_message_no_correlation_id_success)
     }
 }
 
+
+TEST_FUNCTION(message_create_from_iothub_message_no_content_type_success)
+{
+    // arrange
+    umock_c_reset_all_calls();
+    set_exp_calls_for_create_amqp_message_data(1, IOTHUBMESSAGE_STRING, true, false, NULL, TEST_CONTENT_ENCODING);
+
+    BINARY_DATA binary_data;
+    memset(&binary_data, 0, sizeof(binary_data));
+
+    ///act
+    int result = create_amqp_message_data(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, result, 0);
+    //ASSERT_ARE_NOT_EQUAL(void*, NULL, binary_data.bytes);
+
+    // cleanup
+    if (NULL != binary_data.bytes)
+    {
+        real_free((void*)binary_data.bytes);
+    }
+}
+
+
+TEST_FUNCTION(message_create_from_iothub_message_no_content_encoding_success)
+{
+    // arrange
+    umock_c_reset_all_calls();
+    set_exp_calls_for_create_amqp_message_data(1, IOTHUBMESSAGE_STRING, true, false, TEST_CONTENT_TYPE, NULL);
+
+    BINARY_DATA binary_data;
+    memset(&binary_data, 0, sizeof(binary_data));
+
+    ///act
+    int result = create_amqp_message_data(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
+
+    // assert
+    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
+    ASSERT_ARE_EQUAL(int, result, 0);
+    //ASSERT_ARE_NOT_EQUAL(void*, NULL, binary_data.bytes);
+
+    // cleanup
+    if (NULL != binary_data.bytes)
+    {
+        real_free((void*)binary_data.bytes);
+    }
+}
+
+
+
 // BUGBUG - remove this requirement Tests_SRS_UAMQP_MESSAGING_09_062: [If UAMQP message properties were not present then a new properties container shall be created using properties_create()]
 
 // Tests_SRS_UAMQP_MESSAGING_09_049: [If IoTHubMessage_GetByteArray() fails, message_create_from_iothub_message() shall fail and return.]
@@ -722,8 +782,8 @@ TEST_FUNCTION(message_create_from_iothub_message_STRING_return_errors_fails)
 
         if ((i == 4) || // amqpvalue_destroy
              (i == 8) || // amqpvalue_destroy
-             (i == 17) || // amqpvalue_destroy
-             (i == 18) // amqpvalue_destroy
+             (i == 19) || // amqpvalue_destroy
+             (i == 21) // amqpvalue_destroy
             )
         {
             continue; // these lines have functions that do not return anything (void).
@@ -735,7 +795,11 @@ TEST_FUNCTION(message_create_from_iothub_message_STRING_return_errors_fails)
         result = create_amqp_message_data(TEST_IOTHUB_MESSAGE_HANDLE, &binary_data);
 
         // assert
-        if ((i == 1) /*GetMessageId is optional*/ || (i == 5) /*GetCorrelationId is optional*/)
+        if ((i == 1) || // GetMessageId is optional
+            (i == 5) || //GetCorrelationId is optional
+            (i == 9) || // ContentType is optional 
+            (i == 11)   // ContentEncoding is optional
+             )
         {
             ASSERT_ARE_EQUAL(int, result, 0);
         }
