@@ -153,7 +153,8 @@ typedef enum SEND_PENDING_EXPECTED_ACTION_TAG
 {
     SEND_PENDING_EXPECT_ADD,
     SEND_PENDING_EXPECT_ROLLOVER,
-    SEND_PENDING_EXPECT_ERROR_TOO_LARGE
+    SEND_PENDING_EXPECT_ERROR_TOO_LARGE,
+    SEND_PENDING_EXPECT_CREATE_MESSAGE_FAILURE
 }
 SEND_PENDING_EXPECTED_ACTION;
 
@@ -1299,6 +1300,23 @@ static SEND_PENDING_EVENTS_TEST_CONFIG test_send_middle_message_too_big_and_roll
 };
 
 
+// 
+//  We fail call to create_amqp_message_data
+//
+static SEND_PENDING_TEST_EVENTS test_create_message_failure_events[] = {
+    { 10,  SEND_PENDING_EXPECT_CREATE_MESSAGE_FAILURE  },
+};
+
+static SEND_PENDING_EVENTS_TEST_CONFIG test_create_message_failure_config = {
+    100,
+    test_create_message_failure_events,
+    COUNT_OF(test_create_message_failure_events),
+    false,
+    NULL,
+    0
+};
+
+
 
 // Note: This does NOT handle roll-over test paths.  These are handled with different test path.
 static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PENDING_EVENTS_TEST_CONFIG *test_config, time_t current_time)
@@ -1319,6 +1337,7 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
     for (i = 0; i < test_config->number_test_events; i++)
     {
         const SEND_PENDING_EXPECTED_ACTION expected_action = test_config->test_events[i].expected_action;
+    	const int create_amqp_message_data_return = (expected_action == SEND_PENDING_EXPECT_CREATE_MESSAGE_FAILURE) ? 1 : 0;
 
         STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
         STRICT_EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
@@ -1337,9 +1356,9 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
         TEST_amqp_data.length = test_config->test_events[i].number_bytes_encoded;
 
         STRICT_EXPECTED_CALL(create_amqp_message_data(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-            .CopyOutArgumentBuffer(2, &TEST_amqp_data, sizeof(TEST_amqp_data));
+            .CopyOutArgumentBuffer(2, &TEST_amqp_data, sizeof(TEST_amqp_data)).SetReturn(create_amqp_message_data_return);
 
-        if (SEND_PENDING_EXPECT_ERROR_TOO_LARGE == expected_action)
+        if ((SEND_PENDING_EXPECT_ERROR_TOO_LARGE == expected_action) || (SEND_PENDING_EXPECT_CREATE_MESSAGE_FAILURE == expected_action))
         {
             continue;
         }
@@ -2319,7 +2338,7 @@ void test_send_events(SEND_PENDING_EVENTS_TEST_CONFIG *test_config)
     TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
     TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
 
-    send_events(handle, test_config->number_test_events);
+    ASSERT_ARE_EQUAL(int, test_config->number_test_events, send_events(handle, test_config->number_test_events));
 
     time_t current_time = time(NULL);
     MESSENGER_DO_WORK_EXP_CALL_PROFILE *do_work_profile = get_msgr_do_work_exp_call_profile(TELEMETRY_MESSENGER_STATE_STARTED, false, false, 1, 0, current_time, DEFAULT_EVENT_SEND_TIMEOUT_SECS);
@@ -2332,7 +2351,6 @@ void test_send_events(SEND_PENDING_EVENTS_TEST_CONFIG *test_config)
     telemetry_messenger_do_work(handle);
 
     // assert
-    // ASSERT_ARE_EQUAL(int, 0, result);
     ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
 
     // cleanup
@@ -2604,7 +2622,7 @@ static void test_send_events_for_callbacks(MESSAGE_SEND_RESULT message_send_resu
     TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
     TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT expected_result = (MESSAGE_SEND_OK == message_send_result) ? TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK : TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING;
 
-    send_events(handle, test_config->number_test_events);
+    ASSERT_ARE_EQUAL(int, test_config->number_test_events, send_events(handle, test_config->number_test_events));
 
     time_t current_time = time(NULL);
     MESSENGER_DO_WORK_EXP_CALL_PROFILE *mdwp = get_msgr_do_work_exp_call_profile(TELEMETRY_MESSENGER_STATE_STARTED, false, false, 1, 0, current_time, DEFAULT_EVENT_SEND_TIMEOUT_SECS);
@@ -2654,44 +2672,7 @@ TEST_FUNCTION(telemetry_messenger_do_work_on_event_send_complete_ERROR)
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_156: [If message_create_from_iothub_message() fails, telemetry_messenger_do_work() shall skip to the next event to be sent]
 TEST_FUNCTION(telemetry_messenger_do_work_send_events_message_create_from_iothub_message_fails)
 {
-    // BUGBUG - come back here when I think more through error handling.
-#if 0
-    // arrange
-    TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
-    TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
-
-    ASSERT_ARE_EQUAL(int, 1, send_events(handle, 1));
-
-    umock_c_reset_all_calls();
-    STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST)).SetReturn(NULL);
-    STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
-    EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_WAIT_TO_SEND_LIST, IGNORED_PTR_ARG))
-        .IgnoreArgument(2);
-    STRICT_EXPECTED_CALL(singlylinkedlist_add(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG))
-        .IgnoreArgument(2);
-    //STRICT_EXPECTED_CALL(message_create_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, IGNORED_PTR_ARG))
-    //    .IgnoreArgument(2).SetReturn(1);
-    STRICT_EXPECTED_CALL(singlylinkedlist_find(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-        .IgnoreArgument_match_context()
-        .IgnoreArgument_match_function();
-    STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG))
-        .IgnoreArgument(2);
-    EXPECTED_CALL(free(IGNORED_PTR_ARG));
-    STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST)).SetReturn(NULL);
-
-    // act
-    telemetry_messenger_do_work(handle);
-
-    // assert
-    ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-    ASSERT_ARE_EQUAL(void_ptr, TEST_IOTHUB_MESSAGE_LIST_HANDLE, TEST_on_event_send_complete_message);
-    ASSERT_ARE_EQUAL(int, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE, TEST_on_event_send_complete_result);
-    ASSERT_ARE_EQUAL(void_ptr, TEST_IOTHUB_CLIENT_HANDLE, TEST_on_event_send_complete_context);
-
-    // cleanup
-    telemetry_messenger_destroy(handle);
-#endif // 0
+	test_send_events(&test_create_message_failure_config);
 }
 
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_158: [If messagesender_send() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING]  
@@ -2699,48 +2680,37 @@ TEST_FUNCTION(telemetry_messenger_do_work_send_events_message_create_from_iothub
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_161: [If telemetry_messenger_do_work() fail sending events for `instance->event_send_retry_limit` times in a row, it shall invoke `instance->on_state_changed_callback`, if provided, with error code TELEMETRY_MESSENGER_STATE_ERROR]
 TEST_FUNCTION(telemetry_messenger_do_work_send_events_messagesender_send_fails)
 {
-#if 0 // BUGBUG - come back to this...
     // arrange
     TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
     TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
 
-    umock_c_reset_all_calls();
+	umock_c_reset_all_calls();
 
     int i;
     for (i = 0; i < DEFAULT_EVENT_SEND_RETRY_LIMIT; i++)
     {
-        // arrange
         ASSERT_ARE_EQUAL(int, 1, send_events(handle, 1));
 
-        umock_c_reset_all_calls();
+    	umock_c_reset_all_calls();
+    	TEST_number_test_on_send_complete_data = 0;
+
         // timeout checks
-        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST)).SetReturn(NULL);
-        
+    	STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST)).SetReturn(NULL);
+
         // send events
-        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
-        EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-        STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_WAIT_TO_SEND_LIST, IGNORED_PTR_ARG))
+    	STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
+    	EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+    	STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_WAIT_TO_SEND_LIST, IGNORED_PTR_ARG))
             .IgnoreArgument(2);
-        STRICT_EXPECTED_CALL(singlylinkedlist_add(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG))
-            .IgnoreArgument(2);
-        //STRICT_EXPECTED_CALL(message_create_from_iothub_message(TEST_IOTHUB_MESSAGE_HANDLE, IGNORED_PTR_ARG))
-        //    .IgnoreArgument(2);
-        STRICT_EXPECTED_CALL(messagesender_send(TEST_MESSAGE_SENDER_HANDLE, IGNORED_PTR_ARG, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-            .IgnoreArgument(2).IgnoreArgument(3).IgnoreArgument(4).SetReturn(1);
-        EXPECTED_CALL(get_time(NULL)).SetReturn(INDEFINITE_TIME);
-        EXPECTED_CALL(message_destroy(IGNORED_PTR_ARG));
-        STRICT_EXPECTED_CALL(singlylinkedlist_find(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG, IGNORED_PTR_ARG))
-            .IgnoreArgument_match_function()
-            .IgnoreArgument_match_context();
-        STRICT_EXPECTED_CALL(singlylinkedlist_remove(TEST_IN_PROGRESS_LIST, IGNORED_PTR_ARG)).IgnoreArgument(2);
-        EXPECTED_CALL(free(IGNORED_PTR_ARG));
+
+        STRICT_EXPECTED_CALL(link_get_peer_max_message_size(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
+            .SetReturn(1);
 
         // act
         telemetry_messenger_do_work(handle);
 
-        // assert
         ASSERT_ARE_EQUAL(char_ptr, umock_c_get_expected_calls(), umock_c_get_actual_calls());
-        ASSERT_ARE_EQUAL(int, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING, TEST_on_event_send_complete_result);
+    	ASSERT_ARE_EQUAL(int, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING, TEST_on_send_complete_data[0].result);
 
         if (i < (DEFAULT_EVENT_SEND_RETRY_LIMIT - 1))
         {
@@ -2754,7 +2724,6 @@ TEST_FUNCTION(telemetry_messenger_do_work_send_events_messagesender_send_fails)
 
     // cleanup
     telemetry_messenger_destroy(handle);
-#endif
 }
 
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_016: [If `messenger_handle` is NULL, telemetry_messenger_subscribe_for_messages() shall fail and return __FAILURE__]  
@@ -3148,7 +3117,7 @@ TEST_FUNCTION(telemetry_messenger_get_send_status_BUSY_succeeds)
     TELEMETRY_MESSENGER_CONFIG* config = get_messenger_config();
     TELEMETRY_MESSENGER_HANDLE handle = create_and_start_messenger2(config, false);
 
-    send_events(handle, 1);
+    ASSERT_ARE_EQUAL(int, 1, send_events(handle, 1));
 
     // act
     TELEMETRY_MESSENGER_SEND_STATUS send_status_wts;
