@@ -983,19 +983,11 @@ static void set_expected_calls_for_copy_events_from_in_progress_to_waiting_list(
     for (i = 0; i < in_progress_list_length; i++)
     {
         EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-
-        if (i < (in_progress_list_length - 1))
-        {
-            EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
-            EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-            EXPECTED_CALL(singlylinkedlist_add(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
-            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
-            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
-        }
-        else
-        {
-            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
-        }
+        EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
+        EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
+        EXPECTED_CALL(singlylinkedlist_add(IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+        EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
+        EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
     }
 }
 
@@ -1015,23 +1007,22 @@ static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_lis
     }
     else
     {
-		STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
+        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
 
-		int i;
-		for (i = 0; i < in_progress_list_length; i++)
-		{
-			EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-			// por fazer: adicionar codigo para remover items prescritos.
+        int i;
+        for (i = 0; i < in_progress_list_length; i++)
+        {
+            EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
 
-			if (i < (in_progress_list_length - 1))
-			{
-				EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
-			}
-			else
-			{
-				EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
-			}
-		}
+            if (i < (in_progress_list_length - 1))
+            {
+                EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
+            }
+            else
+            {
+                EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG)).SetReturn(NULL);
+            }
+        }
     }
 
     // Move events to wts list
@@ -1051,17 +1042,9 @@ static void set_expected_calls_for_telemetry_messenger_stop(int wait_to_send_lis
         // Moving in_progress_list items to the new wts list.
         set_expected_calls_for_copy_events_from_in_progress_to_waiting_list(in_progress_list_length);
 
-        STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_IN_PROGRESS_LIST));
-        int i;
-        for (i = 0; i < in_progress_list_length; i++)
-        {
-            EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
-            EXPECTED_CALL(singlylinkedlist_add(new_wts_list, IGNORED_PTR_ARG));
-            EXPECTED_CALL(singlylinkedlist_get_next_item(IGNORED_PTR_ARG));
-        }
-
         // Moving wts (wait to send) list items to the new wts list.
         STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(TEST_WAIT_TO_SEND_LIST));
+        int i;
         for (i = 0; i < wait_to_send_list_length; i++)
         {
             EXPECTED_CALL(singlylinkedlist_item_get_value(IGNORED_PTR_ARG));
