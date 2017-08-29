@@ -373,10 +373,11 @@ TEST_SUITE_INITIALIZE(TestClassInitialize)
     REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_GetString, TEST_STRING);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetString, 0);
 
-    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_GetByteArray, IOTHUB_MESSAGE_OK);
+    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetContentType, IOTHUBMESSAGE_UNKNOWN);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetByteArray, IOTHUB_MESSAGE_ERROR);
 
-    REGISTER_GLOBAL_MOCK_FAIL_RETURN(IoTHubMessage_GetContentType, IOTHUBMESSAGE_UNKNOWN);
+    REGISTER_GLOBAL_MOCK_RETURN(IoTHubMessage_GetByteArray, IOTHUB_MESSAGE_OK);
+
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(message_create, NULL);
     REGISTER_GLOBAL_MOCK_FAIL_RETURN(message_add_body_amqp_data, 1);
 
@@ -693,10 +694,6 @@ TEST_FUNCTION(message_create_from_iothub_message_no_content_encoding_success)
         real_free((void*)binary_data.bytes);
     }
 }
-
-
-
-// BUGBUG - remove this requirement Tests_SRS_UAMQP_MESSAGING_09_062: [If UAMQP message properties were not present then a new properties container shall be created using properties_create()]
 
 // Tests_SRS_UAMQP_MESSAGING_09_049: [If IoTHubMessage_GetByteArray() fails, message_create_from_iothub_message() shall fail and return.]
 // Tests_SRS_UAMQP_MESSAGING_09_052: [If the content type of the IOTHUB_MESSAGE_HANDLE instance is IOTHUBMESSAGE_UNKNOWN, message_create_from_iothub_message() shall fail and return.]

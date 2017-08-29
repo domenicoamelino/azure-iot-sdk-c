@@ -142,13 +142,13 @@ static SINGLYLINKEDLIST_HANDLE TEST_IN_PROGRESS_LIST;
 #define TEST_WAIT_TO_SEND_LIST2                           (SINGLYLINKEDLIST_HANDLE)0x4482
 #define TEST_IN_PROGRESS_LIST1                            (SINGLYLINKEDLIST_HANDLE)0x4483
 #define TEST_IN_PROGRESS_LIST2                            (SINGLYLINKEDLIST_HANDLE)0x4484
-#define TEST_CALLBACK_LIST1                               (SINGLYLINKEDLIST_HANDLE)0x4485
-#define TEST_OPTIONHANDLER_HANDLE                         (OPTIONHANDLER_HANDLE)0x4486
+#define TEST_OPTIONHANDLER_HANDLE                         (OPTIONHANDLER_HANDLE)0x4485
+#define TEST_CALLBACK_LIST1                               (SINGLYLINKEDLIST_HANDLE)0x4486
 #define INDEFINITE_TIME                                   ((time_t)-1)
 
 static delivery_number TEST_DELIVERY_NUMBER;
 
-
+// Expected behavior on sending SendEvent's of various lengths
 typedef enum SEND_PENDING_EXPECTED_ACTION_TAG
 {
     SEND_PENDING_EXPECT_ADD,
@@ -158,6 +158,7 @@ typedef enum SEND_PENDING_EXPECTED_ACTION_TAG
 }
 SEND_PENDING_EXPECTED_ACTION;
 
+// Simulates sending events, namely bytes encoded and what we expect to happen based on current state.
 typedef struct SEND_PENDING_TEST_EVENTS_TAG
 {
     int number_bytes_encoded;
@@ -172,6 +173,7 @@ typedef struct TEST_ON_SEND_COMPLETE_DATA_TAG
     void* context;
 } TEST_ON_SEND_COMPLETE_DATA;
 
+// Configuration for a SendEvent UT.
 typedef struct SEND_PENDING_EVENTS_TEST_CONFIG_TAG
 {
     uint64_t                    peer_max_message_size;
@@ -265,8 +267,6 @@ static const void* saved_in_progress_list2[20];
 
 static int saved_callback_list_count1;
 static const void* saved_callback_list1[20];
-
-
 
 static void* saved_on_state_changed_callback_context;
 static TELEMETRY_MESSENGER_STATE saved_on_state_changed_callback_previous_state;
@@ -517,7 +517,7 @@ static int TEST_singlylinkedlist_foreach(SINGLYLINKEDLIST_HANDLE list, LIST_ACTI
 {
     if (list != TEST_CALLBACK_LIST1)
     {
-        // Currently only implemented for callback list
+        ASSERT_FAIL("foreach only currently implemented for TEST_CALLBACK_LIST1");
     }
     else
     {
@@ -1345,8 +1345,8 @@ static void set_expected_calls_for_message_do_work_send_pending_events(SEND_PEND
     
         if (i == 0)
         {
-            // Product factors in AMQP_BATCHING_RESERVE_SIZE bytes and won't go beneath this.  Account for
-            // this in test here.
+            // Product code factors in AMQP_BATCHING_RESERVE_SIZE bytes and won't go beneath this.  
+            // Account for this in test here.
             uint64_t peer_max_message_size = test_config->peer_max_message_size + AMQP_BATCHING_RESERVE_SIZE;
             STRICT_EXPECTED_CALL(link_get_peer_max_message_size(IGNORED_PTR_ARG, IGNORED_PTR_ARG))
                 .CopyOutArgumentBuffer(2, &peer_max_message_size, sizeof(peer_max_message_size));
