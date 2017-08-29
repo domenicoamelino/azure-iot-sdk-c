@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <conio.h>
 
 #include "iothub_client.h"
 #include "iothub_message.h"
@@ -18,13 +19,13 @@
 /*String containing Hostname, Device Id & Device Key in the format:                         */
 /*  "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"                */
 /*  "HostName=<host_name>;DeviceId=<device_id>;SharedAccessSignature=<device_sas_token>"    */
-static const char* connectionString = "[device connection string]";
+static const char* connectionString = "HostName=azure-iot-team-test-esp32.azure-devices.net;DeviceId=ESP32_a;SharedAccessKey=Mn6C0jyt/agGxyzh42ky1VTcQvcNiQFZaIbWwYHrrAg=";
 
 static int callbackCounter;
 static char msgText[1024];
 static char propText[1024];
 static bool g_continueRunning;
-#define MESSAGE_COUNT 5
+#define MESSAGE_COUNT 50
 #define DOWORK_LOOP_NUM     3
 
 
@@ -170,10 +171,12 @@ void iothub_client_sample_mqtt_run(void)
                 size_t iterator = 0;
                 double temperature = 0;
                 double humidity = 0;
+                size_t messages_to_send = 2;
                 do
                 {
-                    if (iterator < MESSAGE_COUNT)
+                    if (iterator < messages_to_send)
                     {
+                        iterator++;
                         temperature = minTemperature + (rand() % 10);
                         humidity = minHumidity +  (rand() % 20);
                         sprintf_s(msgText, sizeof(msgText), "{\"deviceId\":\"myFirstDevice\",\"windSpeed\":%.2f,\"temperature\":%.2f,\"humidity\":%.2f}", avgWindSpeed + (rand() % 4 + 2), temperature, humidity);
@@ -210,8 +213,12 @@ void iothub_client_sample_mqtt_run(void)
                     }
                     IoTHubClient_LL_DoWork(iotHubClientHandle);
                     ThreadAPI_Sleep(1);
-
-                    iterator++;
+                    if (_kbhit())
+                    {
+                        _getch();
+                        printf("Sending one more\r\n");
+                        messages_to_send++;
+                    }
                 } while (g_continueRunning);
 
                 (void)printf("iothub_client_sample_mqtt has gotten quit message, call DoWork %d more time to complete final sending...\r\n", DOWORK_LOOP_NUM);

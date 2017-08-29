@@ -21,14 +21,15 @@ and removing calls to _DoWork will yield the same results. */
 #include "iothubtransportmqtt.h"
 #endif
 
-#ifdef MBED_BUILD_TIMESTAMP
-#include "certs.h"
-#endif // MBED_BUILD_TIMESTAMP
+//#ifdef MBED_BUILD_TIMESTAMP
+#include "C:\Users\RoyS\Documents\AzureIoT\a\sdk\certs/certs.h"
+#include "C:\Users\RoyS\Documents\AzureIoT\a\sdk\certs/certs.c"
+//#endif // MBED_BUILD_TIMESTAMP
 
 
 /*String containing Hostname, Device Id & Device Key in the format:             */
 /*  "HostName=<host_name>;DeviceId=<device_id>;SharedAccessKey=<device_key>"    */
-static const char* connectionString = "[device connection string]";
+static const char* connectionString = "HostName=azure-iot-team-test-esp32.azure-devices.net;DeviceId=ESP32_a;SharedAccessKey=Mn6C0jyt/agGxyzh42ky1VTcQvcNiQFZaIbWwYHrrAg=";
 
 // Define the Model
 BEGIN_NAMESPACE(WeatherStation);
@@ -168,13 +169,13 @@ void simplesample_mqtt_run(void)
             }
             else
             {
-#ifdef MBED_BUILD_TIMESTAMP
+//#ifdef MBED_BUILD_TIMESTAMP
                 // For mbed add the certificate information
                 if (IoTHubClient_LL_SetOption(iotHubClientHandle, "TrustedCerts", certificates) != IOTHUB_CLIENT_OK)
                 {
                     (void)printf("failure to set option \"TrustedCerts\"\r\n");
                 }
-#endif // MBED_BUILD_TIMESTAMP
+//#endif // MBED_BUILD_TIMESTAMP
                 
 
                 ContosoAnemometer* myWeather = CREATE_MODEL_INSTANCE(WeatherStation, ContosoAnemometer);
@@ -209,10 +210,26 @@ void simplesample_mqtt_run(void)
                         }
 
                         /* wait for commands */
+                        uint32_t j = 0;
                         while (1)
                         {
+                            j++;
                             IoTHubClient_LL_DoWork(iotHubClientHandle);
                             ThreadAPI_Sleep(100);
+                            if (j % 50 == 0)
+                            {
+                                unsigned char* destination;
+                                size_t destinationSize;
+                                if (SERIALIZE(&destination, &destinationSize, myWeather->DeviceId, myWeather->WindSpeed, myWeather->Temperature, myWeather->Humidity) != CODEFIRST_OK)
+                                {
+                                    (void)printf("Failed to serialize\r\n");
+                                }
+                                else
+                                {
+                                    sendMessage(iotHubClientHandle, destination, destinationSize, myWeather);
+                                    free(destination);
+                                }
+                            }
                         }
                     }
 

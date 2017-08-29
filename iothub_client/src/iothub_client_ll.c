@@ -1912,3 +1912,73 @@ IOTHUB_CLIENT_RESULT IoTHubClient_LL_UploadToBlob(IOTHUB_CLIENT_LL_HANDLE iotHub
     return result;
 }
 #endif
+//
+//
+//// A free-running counter in milliseconds. The zero-time of this counter is not defined,
+//// so all time measuremensts must be done as deltas.
+//tickcounter_ms_t pal_get_tick_ms();
+//
+//tickcounter_ms_t pal_get_elapsed_ms(tickcounter_ms_t begin_tick_ms)
+//{
+//    // Containing the subtraction here ensures that no type promotion occurs,
+//    // which guarantees correct rollover behavior.
+//    return pal_get_tick_ms() - begin_tick_ms;
+//}
+//
+//typedef struct
+//{
+//    TICK_COUNTER_HANDLE tickcounter;
+//    tickcounter_ms_t timeout;
+//} myTimeoutObject;
+//
+//static void start_timer(myTimeoutObject* obj, 
+//    tickcounter_ms_t timeout_duration)
+//{
+//    TICK_COUNTER_HANDLE timer = tickcounter_create();
+//    if (timer != NULL)
+//    {
+//        int result = tickcounter_get_current_ms(timer, &obj->timeout);
+//        if (result == 0)
+//        {
+//            obj->tickcounter = timer;
+//            obj->timeout += timeout_duration;
+//        }
+//        else
+//        {
+//            tickcounter_destroy(timer);
+//            obj->tickcounter = NULL;
+//            obj->timeout = 0;
+//            LogInfo("Failed tickcounter_get_current_ms");
+//        }
+//    }
+//    else
+//    {
+//        obj->tickcounter = NULL;
+//        obj->timeout = 0;
+//        LogInfo("Failed tickcounter_create");
+//    }
+//}
+//
+//static void check_timeout(myTimeoutObject* obj)
+//{
+//    if (obj->tickcounter != NULL)
+//    {
+//        tickcounter_ms_t timeNow;
+//        int result = tickcounter_get_current_ms(obj->tickcounter, &timeNow);
+//        if (result == 0)
+//        {
+//            if (timeNow > obj->timeout)
+//            {
+//                // Handle timeout
+//            }
+//        }
+//        else
+//        {
+//            LogInfo("Failed tickcounter_get_current_ms");
+//        }
+//    }
+//    else
+//    {
+//        LogInfo("Could not check timeout: no tickcounter");
+//    }
+//}

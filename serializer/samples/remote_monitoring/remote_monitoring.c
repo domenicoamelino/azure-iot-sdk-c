@@ -13,15 +13,18 @@
 #include "azure_c_shared_utility/threadapi.h"
 #include "azure_c_shared_utility/platform.h"
 
+#define MBED_BUILD_TIMESTAMP
+
 #ifdef MBED_BUILD_TIMESTAMP
-#include "certs.h"
+#include "C:\Users\RoyS\Documents\AzureIoT\b54_win\azure-iot-sdk-c\certs\certs.h"
+#include "C:\Users\RoyS\Documents\AzureIoT\b54_win\azure-iot-sdk-c\certs\certs.c"
 #endif // MBED_BUILD_TIMESTAMP
 
 
-static const char* deviceId = "[Device Id]";
-static const char* deviceKey = "[Device Key]";
-static const char* hubName = "[IoTHub Name]";
-static const char* hubSuffix = "[IoTHub Suffix, i.e. azure-devices.net]";
+static const char* deviceId = "TestDevice01";
+static const char* deviceKey = "3s04a6jr99+Oog8KeqG2MnN9igkqu3G+c3JJOLW2tM8=";
+static const char* hubName = "royspr-m07f130";
+static const char* hubSuffix = "azure-devices.net";
 
 // Define the Model
 BEGIN_NAMESPACE(Contoso);
