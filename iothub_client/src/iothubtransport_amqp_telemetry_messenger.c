@@ -36,14 +36,15 @@
 #define UNIQUE_ID_BUFFER_SIZE                           37
 #define STRING_NULL_TERMINATOR                          '\0'
 
+#define AMQP_BATCHING_FORMAT_CODE 0x80013700
  
 typedef struct TELEMETRY_MESSENGER_INSTANCE_TAG
 {
     STRING_HANDLE device_id;
     STRING_HANDLE product_info;
     STRING_HANDLE iothub_host_fqdn;
-    SINGLYLINKEDLIST_HANDLE waiting_to_send;
-    SINGLYLINKEDLIST_HANDLE in_progress_list;
+    SINGLYLINKEDLIST_HANDLE waiting_to_send;   // List of MESSENGER_SEND_EVENT_CALLER_INFORMATION's
+    SINGLYLINKEDLIST_HANDLE in_progress_list;  // List of MESSENGER_SEND_EVENT_TASK's
     TELEMETRY_MESSENGER_STATE state;
     
     ON_TELEMETRY_MESSENGER_STATE_CHANGED_CALLBACK on_state_changed_callback;
@@ -83,7 +84,7 @@ typedef struct MESSENGER_SEND_EVENT_CALLER_INFORMATION_TAG
 // from this lower layer which is used to pass the results back to the API via the callback_list.
 typedef struct MESSENGER_SEND_EVENT_TASK_TAG
 {
-    SINGLYLINKEDLIST_HANDLE callback_list;  // Type is MESSENGER_SEND_EVENT_CALLER_INFORMATION
+    SINGLYLINKEDLIST_HANDLE callback_list;  // List of MESSENGER_SEND_EVENT_CALLER_INFORMATION's
     time_t send_time;
     TELEMETRY_MESSENGER_INSTANCE *messenger;
     bool is_timed_out;
@@ -964,11 +965,14 @@ static void free_task(MESSENGER_SEND_EVENT_TASK* task)
 {
     LIST_ITEM_HANDLE list_node;
 
-    while ((list_node = singlylinkedlist_get_head_item(task->callback_list)) != NULL)
+    if (NULL != task->callback_list)
     {
-        MESSENGER_SEND_EVENT_CALLER_INFORMATION* caller_info = (MESSENGER_SEND_EVENT_CALLER_INFORMATION*)singlylinkedlist_item_get_value(list_node);
-        (void)singlylinkedlist_remove(task->callback_list, list_node);
-        free(caller_info);
+        while ((list_node = singlylinkedlist_get_head_item(task->callback_list)) != NULL)
+        {
+            MESSENGER_SEND_EVENT_CALLER_INFORMATION* caller_info = (MESSENGER_SEND_EVENT_CALLER_INFORMATION*)singlylinkedlist_item_get_value(list_node);
+            (void)singlylinkedlist_remove(task->callback_list, list_node);
+            free(caller_info);
+        }
     }
 
     free(task);
@@ -1089,6 +1093,7 @@ typedef struct SEND_PENDING_EVENTS_STATE_TAG
     uint64_t bytes_pending;
 } SEND_PENDING_EVENTS_STATE;
 
+
 static int create_send_pending_events_state(TELEMETRY_MESSENGER_INSTANCE* instance, SEND_PENDING_EVENTS_STATE *send_pending_events_state)
 {
     int result;
@@ -1099,7 +1104,7 @@ static int create_send_pending_events_state(TELEMETRY_MESSENGER_INSTANCE* instan
         LogError("messageBatchContainer = message_create() failed");
         result = __FAILURE__;
     }
-    else if (0 != (result = message_set_message_format(send_pending_events_state->message_batch_container, 0x80013700)))
+    else if (0 != (result = message_set_message_format(send_pending_events_state->message_batch_container, AMQP_BATCHING_FORMAT_CODE)))
     {
         LogError("Failed setting the message format to batching format, result = %d", result);
     }
@@ -1187,23 +1192,23 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
         }
         memset(&body_binary_data, 0, sizeof(body_binary_data));
     
-        if ((0 == max_messagesize) && (0 != get_max_message_size_for_batching(instance, &max_messagesize)))
+        if ((0 == max_messagesize) && (0 != (result = get_max_message_size_for_batching(instance, &max_messagesize))))
         {
-            LogError("get_max_message_size_for_batching failed");
+            LogError("get_max_message_size_for_batching failed, result = %d", result);
             invoke_callback_on_error(caller_info, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
             result = __FAILURE__;
             break;
         }
-        else if ((0 == send_pending_events_state.task) && (0 != create_send_pending_events_state(instance, &send_pending_events_state)))
+        else if ((0 == send_pending_events_state.task) && (0 != (result = create_send_pending_events_state(instance, &send_pending_events_state))))
         {
-            LogError("create_send_pending_events_state failed");
+            LogError("create_send_pending_events_state failed, result = %d", result);
             invoke_callback_on_error(caller_info, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
             result = __FAILURE__;
             break;
         }
-        else if (RESULT_OK != create_amqp_message_data(caller_info->message->messageHandle, &body_binary_data))
+        else if (RESULT_OK != (result = create_amqp_message_data(caller_info->message->messageHandle, &body_binary_data)))
         {
-            LogError("create_amqp_message_data() failed.  Will continue to try to process messages");
+            LogError("create_amqp_message_data() failed.  Will continue to try to process messages, result = %d", result);
             invoke_callback_on_error(caller_info, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
             continue;
         }
@@ -1262,6 +1267,7 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
         free((unsigned char*)body_binary_data.bytes);
     }
 
+    // A non-NULL task indicates error, since otherwise send_batched_message_and_reset_state would've sent off messages and reset send_pending_events_state
     if (NULL != send_pending_events_state.task)
     {
         singlylinkedlist_foreach(send_pending_events_state.task->callback_list, invoke_callback, (void*)TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
