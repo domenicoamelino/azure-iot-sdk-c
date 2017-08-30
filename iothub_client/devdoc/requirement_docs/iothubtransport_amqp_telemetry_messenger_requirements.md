@@ -120,7 +120,7 @@ int telemetry_messenger_send_async(TELEMETRY_MESSENGER_HANDLE messenger_handle, 
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_134: [**If `messenger_handle` is NULL, telemetry_messenger_send_async() shall fail and return a non-zero value**]**  
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_135: [**If `message` is NULL, telemetry_messenger_send_async() shall fail and return a non-zero value**]**  
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_136: [**If `on_event_send_complete_callback` is NULL, telemetry_messenger_send_async() shall fail and return a non-zero value**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_137: [**telemetry_messenger_send_async() shall allocate memory for a SEND_EVENT_TASK structure (aka `task`)**]**  
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_137: [**telemetry_messenger_send_async() shall allocate memory for a MESSENGER_SEND_EVENT_CALLER_INFORMATION structure**]**
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_138: [**If malloc() fails, telemetry_messenger_send_async() shall fail and return a non-zero value**]**    
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_100: [**`task` shall be added to `instance->wait_to_send_list` using singlylinkedlist_add()**]**  
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_139: [**If singlylinkedlist_add() fails, telemetry_messenger_send_async() shall fail and return a non-zero value**]**
@@ -355,23 +355,23 @@ static AMQP_VALUE on_message_received_internal_callback(const void* context, MES
 
 ### Send pending events
 
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_153: [**telemetry_messenger_do_work() shall move each event to be sent from `instance->wait_to_send_list` to `instance->in_progress_list`**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_154: [**A MESSAGE_HANDLE shall be obtained out of the event's IOTHUB_MESSAGE_HANDLE instance by using message_create_from_iothub_message()**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_155: [**If message_create_from_iothub_message() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_156: [**If message_create_from_iothub_message() fails, telemetry_messenger_do_work() shall skip to the next event to be sent**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_157: [**The MESSAGE_HANDLE shall be submitted for sending using messagesender_send(), passing `internal_on_event_send_complete_callback`**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_158: [**If messagesender_send() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_159: [**The MESSAGE_HANDLE shall be destroyed using message_destroy().**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_160: [**If any failure occurs the event shall be removed from `instance->in_progress_list` and destroyed**]**  
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_161: [**If telemetry_messenger_do_work() fail sending events for `instance->event_send_retry_limit` times in a row, it shall invoke `instance->on_state_changed_callback`, if provided, with error code TELEMETRY_MESSENGER_STATE_ERROR**]**  
-
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_192: [**Enumerate through all messages waiting to send, building up AMQP message to send and sending when size will be greater than link max size.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_193: [**If adding next AMQP message would be too close too large for AMQP message (factoring in 1KB buffer), send currently queued messages and create a new message for subsequent sends.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_194: [**When message is ready to send, invoke AMQP's messagesender_send and free temporary values associated with this batch.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_195: [**Append the current message's encoded data to the batched message tracked by uAMQP layer.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_197: [**If a single message is greater than our maximum AMQP send size, ignore the message.  Invoke the callback but continue send loop; this is NOT a fatal error.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_198: [**While processing pending messages, errors shall result in user callback being invoked.**]       **
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_199: [**Errors specific to a message (e.g. failure to encode) are NOT fatal but we'll keep processing.  More general errors (e.g. out of memory) will stop processing.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_200: [**Retrieve an AMQP encoded representation of this message for later appending to main batched message.  On error, invoke callback but continue send loop; this is NOT a fatal error.**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_201: [**If create_amqp_message_data fails, invoke callback with TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE**]**
 
 #### internal_on_event_send_complete_callback
-
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_107: [**If no failure occurs, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_OK**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_108: [**If a failure occurred, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING**]**  
 **SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_128: [**`task` shall be removed from `instance->in_progress_list`**]**  
-**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [**`task` shall be destroyed using free()**]**  
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [**`task` shall be destroyed()**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_189: [**If no failure occurs, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK for all callers associated with this task**]**
+**SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_190: [**If a failure occured, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING for all callers associated with this task**]**
+
 
 NOTE: the IOTHUB_MESSAGE_HANDLE must be destroyed by the upper layer, it is not freed here since this module doesn't own (i.e., create) it.
 

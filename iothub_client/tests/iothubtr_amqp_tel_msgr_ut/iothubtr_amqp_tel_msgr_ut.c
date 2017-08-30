@@ -2327,10 +2327,9 @@ TEST_FUNCTION(telemetry_messenger_do_work_not_started)
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_051: [`instance->message_sender` shall be created using messagesender_create(), passing the `instance->sender_link` and `on_event_sender_state_changed_callback`]  
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_053: [`instance->message_sender` shall be opened using messagesender_open()]  
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_055: [Before returning, telemetry_messenger_do_work() shall release all the temporary memory it has allocated]
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_153: [telemetry_messenger_do_work() shall move each event to be sent from `instance->wait_to_send_list` to `instance->in_progress_list`]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_154: [A MESSAGE_HANDLE shall be obtained out of the event's IOTHUB_MESSAGE_HANDLE instance by using message_create_from_iothub_message()]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_157: [The MESSAGE_HANDLE shall be submitted for sending using messagesender_send(), passing `internal_on_event_send_complete_callback`]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_159: [The MESSAGE_HANDLE shall be destroyed using message_destroy().] 
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_192: [Enumerate through all messages waiting to send, building up AMQP message to send and sending when size will be greater than link max size.]
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_200: [Retrieve an AMQP encoded representation of this message for later appending to main batched message.  On error, invoke callback but continue send loop; this is NOT a fatal error.]
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_194: [When message is ready to send, invoke AMQP's messagesender_send and free temporary values associated with this batch.]
 
 void test_send_events(SEND_PENDING_EVENTS_TEST_CONFIG *test_config)
 {
@@ -2647,9 +2646,9 @@ static void test_send_events_for_callbacks(MESSAGE_SEND_RESULT message_send_resu
     telemetry_messenger_destroy(handle);
 }
 
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_107: [If no failure occurs, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_OK]  
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_189: [If no failure occurs, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK for all callers associated with this task]
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_128: [`task` shall be removed from `instance->in_progress_list`]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [`task` shall be destroyed using free()]  
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [**`task` shall be destroyed()**]**
 TEST_FUNCTION(telemetry_messenger_do_work_on_event_send_complete_OK)
 {
     test_send_events_for_callbacks(MESSAGE_SEND_OK, &test_send_one_message_config);
@@ -2660,23 +2659,22 @@ TEST_FUNCTION(telemetry_messenger_do_work_on_multiple_callbacks_OK)
     test_send_events_for_callbacks(MESSAGE_SEND_OK, &test_send_just_under_rollover_config);
 }
 
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_108: [If a failure occurred, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING]  
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_190: [If a failure occured, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING for all callers associated with this task]
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_128: [`task` shall be removed from `instance->in_progress_list`]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [`task` shall be destroyed using free()]  
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [**`task` shall be destroyed()**]**
 TEST_FUNCTION(telemetry_messenger_do_work_on_event_send_complete_ERROR)
 {
     test_send_events_for_callbacks(MESSAGE_SEND_ERROR, &test_send_one_message_config);
 }
 
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_155: [If message_create_from_iothub_message() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_156: [If message_create_from_iothub_message() fails, telemetry_messenger_do_work() shall skip to the next event to be sent]
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_201: [If create_amqp_message_data fails, invoke callback with TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE]
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_199: [Errors specific to a message (e.g. failure to encode) are NOT fatal but we'll keep processing.  More general errors (e.g. out of memory) will stop processing.]
 TEST_FUNCTION(telemetry_messenger_do_work_send_events_message_create_from_iothub_message_fails)
 {
 	test_send_events(&test_create_message_failure_config);
 }
 
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_158: [If messagesender_send() fails, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING]  
-// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_160: [If any failure occurs the event shall be removed from `instance->in_progress_list` and destroyed]  
+// Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_198: [While processing pending messages, errors shall result in user callback being invoked.]
 // Tests_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_161: [If telemetry_messenger_do_work() fail sending events for `instance->event_send_retry_limit` times in a row, it shall invoke `instance->on_state_changed_callback`, if provided, with error code TELEMETRY_MESSENGER_STATE_ERROR]
 TEST_FUNCTION(telemetry_messenger_do_work_send_events_messagesender_send_fails)
 {

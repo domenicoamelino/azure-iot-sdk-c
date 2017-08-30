@@ -19,6 +19,7 @@ static int encode_callback(void* context, const unsigned char* bytes, size_t len
     return 0;
 }
 
+// Codes_SRS_UAMQP_MESSAGING_31_112: [If optional message-id is present in the message, encode it into the AMQP message.  Errors stop processing on this message.]
 static int set_message_id_if_needed(IOTHUB_MESSAGE_HANDLE messageHandle, PROPERTIES_HANDLE uamqp_message_properties)
 {
     int result;
@@ -56,6 +57,7 @@ static int set_message_id_if_needed(IOTHUB_MESSAGE_HANDLE messageHandle, PROPERT
     return result;
 }
 
+// Codes_SRS_UAMQP_MESSAGING_31_113: [If optional correlation-id is present in the message, encode it into the AMQP message.  Errors stop processing on this message.]
 static int set_message_correlation_id_if_needed(IOTHUB_MESSAGE_HANDLE messageHandle, PROPERTIES_HANDLE uamqp_message_properties)
 {
     int result;
@@ -93,6 +95,7 @@ static int set_message_correlation_id_if_needed(IOTHUB_MESSAGE_HANDLE messageHan
     return result;
 }
 
+// Codes_SRS_UAMQP_MESSAGING_31_114: [If optional content-type is present in the message, encode it into the AMQP message.  Errors stop processing on this message.]
 static int set_message_content_type_if_needed(IOTHUB_MESSAGE_HANDLE messageHandle, PROPERTIES_HANDLE uamqp_message_properties)
 {
     int result;
@@ -114,6 +117,7 @@ static int set_message_content_type_if_needed(IOTHUB_MESSAGE_HANDLE messageHandl
 	return result;
 }
 
+// Codes_SRS_UAMQP_MESSAGING_31_115: [If optional content-encoding is present in the message, encode it into the AMQP message.  Errors stop processing on this message.]
 static int set_message_content_encoding_if_needed(IOTHUB_MESSAGE_HANDLE messageHandle, PROPERTIES_HANDLE uamqp_message_properties)
 {
     int result;
@@ -136,7 +140,8 @@ static int set_message_content_encoding_if_needed(IOTHUB_MESSAGE_HANDLE messageH
 }
 
 
-static int create_encoded_message_properties(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *message_properties, size_t *message_properties_length)
+// Codes_SRS_UAMQP_MESSAGING_31_116: [Gets message properties associated with the IOTHUB_MESSAGE_HANDLE to encode, returning the properties and their encoded length.  Errors stop processing on this message.]
+static int create_message_properties_to_encode(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *message_properties, size_t *message_properties_length)
 {
     PROPERTIES_HANDLE uamqp_message_properties = NULL;
     int result;
@@ -184,7 +189,8 @@ static int create_encoded_message_properties(IOTHUB_MESSAGE_HANDLE messageHandle
     return result;
 }
 
-static int create_encoded_application_properties(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *application_properties, size_t *application_properties_length)
+// Codes_SRS_UAMQP_MESSAGING_31_117: [Get application message properties associated with the IOTHUB_MESSAGE_HANDLE to encode, returning the properties and their encoded length.  Errors stop processing on this message.]
+static int create_application_properties_to_encode(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *application_properties, size_t *application_properties_length)
 {
     MAP_HANDLE properties_map;
     const char* const* property_keys;
@@ -195,13 +201,11 @@ static int create_encoded_application_properties(IOTHUB_MESSAGE_HANDLE messageHa
 
     if (NULL == (properties_map = IoTHubMessage_Properties(messageHandle)))
     {
-        // Codes_SRS_UAMQP_MESSAGING_09_028: [If IoTHubMessage_Properties fails, IoTHubMessage_CreateFromuAMQPMessage() shall fail and return immediately.]
         LogError("Failed to get property map from IoTHub message.");
         result = __FAILURE__;
     }
     else if (0 != (result = Map_GetInternals(properties_map, &property_keys, &property_values, &property_count)))
     {
-        // Codes_SRS_UAMQP_MESSAGING_09_030: [If message_get_application_properties fails, IoTHubMessage_CreateFromuAMQPMessage() shall fail and return immediately.]
         LogError("Failed reading the incoming uAMQP message properties (return code %d).", result);
         result = __FAILURE__;
     }
@@ -220,7 +224,6 @@ static int create_encoded_application_properties(IOTHUB_MESSAGE_HANDLE messageHa
                 AMQP_VALUE map_property_key;
                 AMQP_VALUE map_property_value;
 
-                /* Codes_SRS_EVENTHUBCLIENT_LL_01_056: [For each property a key and value AMQP value shall be created by calling amqpvalue_create_string.] */
                 if ((map_property_key = amqpvalue_create_string(property_keys[i])) == NULL)
                 {
                 	LogError("Failed amqpvalue_create_string for key");
@@ -236,7 +239,6 @@ static int create_encoded_application_properties(IOTHUB_MESSAGE_HANDLE messageHa
                     break;
                 }
 
-                /* Codes_SRS_EVENTHUBCLIENT_LL_01_057: [Then each property shall be added to the application properties map by calling amqpvalue_set_map_value.] */
                 if (0 != (result = amqpvalue_set_map_value(uamqp_properties_map, map_property_key, map_property_value)))
                 {
                 	LogError("Failed amqpvalue_set_map_value, result = %d", result);
@@ -270,7 +272,8 @@ static int create_encoded_application_properties(IOTHUB_MESSAGE_HANDLE messageHa
 }
 
 
-static int create_encoded_data(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *data_value, size_t *data_length)
+// Codes_SRS_UAMQP_MESSAGING_31_118: [Gets data associated with IOTHUB_MESSAGE_HANDLE to encode, either from underlying byte array or string format.  Errors stop processing on this message.]
+static int create_data_to_encode(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *data_value, size_t *data_length)
 {
     int result;
 
@@ -281,19 +284,15 @@ static int create_encoded_data(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *
     if ((contentType == IOTHUBMESSAGE_BYTEARRAY) &&
         IoTHubMessage_GetByteArray(messageHandle, (const unsigned char **)&messageContent, &messageContentSize) != IOTHUB_MESSAGE_OK)
     {
-        // Codes_SRS_UAMQP_MESSAGING_09_049: [If IoTHubMessage_GetByteArray() fails, message_create_from_iothub_message() shall fail and return.]
         LogError("Failed getting the BYTE array representation of the IOTHUB_MESSAGE_HANDLE instance.");
         result = __FAILURE__;
     }
-    // Codes_SRS_UAMQP_MESSAGING_09_050: [If the content type of the IOTHUB_MESSAGE_HANDLE instance is IOTHUBMESSAGE_STRING, the content shall be obtained using IoTHubMessage_GetString().]
     else if ((contentType == IOTHUBMESSAGE_STRING) &&
         ((messageContent = IoTHubMessage_GetString(messageHandle)) == NULL))
     {
-        // Codes_SRS_UAMQP_MESSAGING_09_051: [If IoTHubMessage_GetString() fails, message_create_from_iothub_message() shall fail and return.]
         LogError("Failed getting the STRING representation of the IOTHUB_MESSAGE_HANDLE instance.");
         result = __FAILURE__;
     }
-    // Codes_SRS_UAMQP_MESSAGING_09_052: [If the content type of the IOTHUB_MESSAGE_HANDLE instance is IOTHUBMESSAGE_UNKNOWN, message_create_from_iothub_message() shall fail and return.]
     else if (contentType == IOTHUBMESSAGE_UNKNOWN)
     {
         LogError("Cannot parse IOTHUB_MESSAGE_HANDLE with content type IOTHUBMESSAGE_UNKNOWN.");
@@ -329,6 +328,7 @@ static int create_encoded_data(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE *
     return result;
 }
 
+// Codes_SRS_UAMQP_MESSAGING_31_120: [Create a blob that contains AMQP encoding of IOTHUB_MESSAGE_HANDLE.  Errors stop processing on this message.]
 int create_amqp_message_data(IOTHUB_MESSAGE_HANDLE message_handle, BINARY_DATA* body_binary_data)
 {
     int result;
@@ -343,23 +343,24 @@ int create_amqp_message_data(IOTHUB_MESSAGE_HANDLE message_handle, BINARY_DATA* 
     body_binary_data->bytes = NULL;
     body_binary_data->length = 0;
 
-    if (RESULT_OK != (result = create_encoded_message_properties(message_handle, &message_properties, &message_properties_length)))
+    if (RESULT_OK != (result = create_message_properties_to_encode(message_handle, &message_properties, &message_properties_length)))
     {
-        LogError("create_encoded_message_properties() failed, result = %d", result);
+        LogError("create_message_properties_to_encode() failed, result = %d", result);
     }
-    else if (RESULT_OK != (result = create_encoded_application_properties(message_handle, &application_properties, &application_properties_length)))
+    else if (RESULT_OK != (result = create_application_properties_to_encode(message_handle, &application_properties, &application_properties_length)))
     {
-        LogError("create_encoded_application_properties() failed, result = %d", result);
+        LogError("create_application_properties_to_encode() failed, result = %d", result);
     }
-    else if (RESULT_OK != (result = create_encoded_data(message_handle, &data_value, &data_length)))
+    else if (RESULT_OK != (result = create_data_to_encode(message_handle, &data_value, &data_length)))
     {
-        LogError("create_encoded_data() failed, result = %d", result);
+        LogError("create_data_to_encode() failed, result = %d", result);
     }
     else if (NULL == (body_binary_data->bytes = malloc(message_properties_length + application_properties_length + data_length)))
     {
         LogError("malloc of %d bytes failed", message_properties_length + application_properties_length + data_length);
         result = __FAILURE__;
     }
+	// Codes_SRS_UAMQP_MESSAGING_31_119: [Invoke underlying AMQP encode routines on data waiting to be encoded.  Errors stop processing on this message.]
     else if (RESULT_OK != (result = amqpvalue_encode(message_properties, &encode_callback, body_binary_data)))
     {
         LogError("amqpvalue_encode() for message properties failed, result = %d", result);

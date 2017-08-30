@@ -1036,12 +1036,12 @@ static void internal_on_event_send_complete_callback(void* context, MESSAGE_SEND
             {
                 TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT messenger_send_result;
 
-                // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_107: [If no failure occurs, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_OK]  
+                // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_189: [If no failure occurs, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK for all callers associated with this task]
                 if (send_result == MESSAGE_SEND_OK)
                 {
                     messenger_send_result = TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_OK;
                 }
-                // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_108: [If a failure occurred, `task->on_event_send_complete_callback` shall be invoked with result EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING] 
+                // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_190: [If a failure occured, `on_event_send_complete_callback` shall be invoked with result TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING for all callers associated with this task]
                 else
                 {
                     messenger_send_result = TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING;
@@ -1058,7 +1058,7 @@ static void internal_on_event_send_complete_callback(void* context, MESSAGE_SEND
             // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_128: [`task` shall be removed from `instance->in_progress_list`]  
             remove_event_from_in_progress_list(task);
 
-            // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [`task` shall be destroyed using free()]  
+            // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_09_130: [`task` shall be destroyed()]
             free_task(task);
         }
     }
@@ -1094,6 +1094,7 @@ typedef struct SEND_PENDING_EVENTS_STATE_TAG
 } SEND_PENDING_EVENTS_STATE;
 
 
+// Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_191: [Creates an AMQP message, sets it to be batch mode, and creates an associated task for its callbacks.  Errors cause the send events loop to break.]          
 static int create_send_pending_events_state(TELEMETRY_MESSENGER_INSTANCE* instance, SEND_PENDING_EVENTS_STATE *send_pending_events_state)
 {
     int result;
@@ -1126,6 +1127,7 @@ static void invoke_callback_on_error(MESSENGER_SEND_EVENT_CALLER_INFORMATION* ca
     caller_info->on_event_send_complete_callback(caller_info->message, messenger_event_send_complete_result, (void*)caller_info->context);
 }
 
+// Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_194: [When message is ready to send, invoke AMQP's messagesender_send and free temporary values associated with this batch.]
 static int send_batched_message_and_reset_state(TELEMETRY_MESSENGER_INSTANCE* instance, SEND_PENDING_EVENTS_STATE *send_pending_events_state)
 {
     int result;
@@ -1146,6 +1148,7 @@ static int send_batched_message_and_reset_state(TELEMETRY_MESSENGER_INSTANCE* in
     return result;
 }
 
+// Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_196: [Determine the maximum message size we can send over this link from AMQP, then remove AMQP_BATCHING_RESERVE_SIZE (1024) bytes as reserve buffer.]          
 static int get_max_message_size_for_batching(TELEMETRY_MESSENGER_INSTANCE* instance, uint64_t* max_messagesize)
 {
     int result;
@@ -1183,6 +1186,9 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
 
     uint64_t max_messagesize = 0;
 
+    // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_192: [Enumerate through all messages waiting to send, building up AMQP message to send and sending when size will be greater than link max size.]
+    // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_198: [While processing pending messages, errors shall result in user callback being invoked.]    
+    // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_199: [Errors specific to a message (e.g. failure to encode) are NOT fatal but we'll keep processing.  More general errors (e.g. out of memory) will stop processing.]
     while ((caller_info = get_next_caller_message_to_send(instance)) != NULL)
     {
         if (body_binary_data.bytes != NULL)
@@ -1206,12 +1212,15 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
             result = __FAILURE__;
             break;
         }
+        // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_200: [Retrieve an AMQP encoded representation of this message for later appending to main batched message.  On error, invoke callback but continue send loop; this is NOT a fatal error.]
         else if (RESULT_OK != (result = create_amqp_message_data(caller_info->message->messageHandle, &body_binary_data)))
         {
+            // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_201: [If create_amqp_message_data fails, invoke callback with TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE]
             LogError("create_amqp_message_data() failed.  Will continue to try to process messages, result = %d", result);
-            invoke_callback_on_error(caller_info, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_FAIL_SENDING);
+            invoke_callback_on_error(caller_info, TELEMETRY_MESSENGER_EVENT_SEND_COMPLETE_RESULT_ERROR_CANNOT_PARSE);
             continue;
         }
+        // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_197: [If a single message is greater than our maximum AMQP send size, ignore the message.  Invoke the callback but continue send loop; this is NOT a fatal error.]
         else if (body_binary_data.length > (int)max_messagesize)
         {
             LogError("a single message will encode to be %d bytes, larger than max we will send the link %lld.  Will continue to try to process messages", body_binary_data.length, max_messagesize);
@@ -1228,6 +1237,8 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
 
         // Once we've added the caller_info to the callback_list, don't directly 'invoke_callback_on_error' anymore directly.
         // The task is responsible for running through its callers for callbacks, even for errors in this function.
+
+        // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_193: [If adding next AMQP message would be too close too large for AMQP message (factoring in 1KB buffer), send currently queued messages and create a new message for subsequent sends.]
         if (body_binary_data.length + send_pending_events_state.bytes_pending > max_messagesize)
         {
             // If we tried to add the current message, we would overflow.  Send what we've queued immediately.
@@ -1245,6 +1256,7 @@ static int send_pending_events(TELEMETRY_MESSENGER_INSTANCE* instance)
             }
         }
 
+        // Codes_SRS_IOTHUBTRANSPORT_AMQP_MESSENGER_31_195: [Append the current message's encoded data to the batched message tracked by uAMQP layer.]
         if (0 != (result = message_add_body_amqp_data(send_pending_events_state.message_batch_container, body_binary_data)))
         {
             LogError("message_add_body_amqp_data failed, result = %d", result);
