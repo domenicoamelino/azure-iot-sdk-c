@@ -743,7 +743,7 @@ static void send_event_test(IOTHUB_PROVISIONED_DEVICE* deviceToUse, IOTHUB_CLIEN
 {
     TEST_MESSAGE_CREATION_MECHANISM test_message_creation[] = { TEST_MESSAGE_CREATE_BYTE_ARRAY, TEST_MESSAGE_CREATE_STRING };
 
-    for (int i = 0; i < COUNT_OF(test_message_creation); i++)
+    for (int i = 0; i < sizeof(test_message_creation) / sizeof(test_message_creation[0]); i++)
     {
         // arrange
         IOTHUB_CLIENT_HANDLE iotHubClientHandle;
