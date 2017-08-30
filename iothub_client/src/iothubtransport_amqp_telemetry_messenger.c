@@ -973,6 +973,7 @@ static void free_task(MESSENGER_SEND_EVENT_TASK* task)
             (void)singlylinkedlist_remove(task->callback_list, list_node);
             free(caller_info);
         }
+        singlylinkedlist_destroy(task->callback_list);
     }
 
     free(task);

@@ -1074,6 +1074,8 @@ static void set_expected_calls_free_task(int number_callbacks)
         STRICT_EXPECTED_CALL(singlylinkedlist_get_head_item(IGNORED_PTR_ARG));
     }
 
+    STRICT_EXPECTED_CALL(singlylinkedlist_destroy(IGNORED_PTR_ARG));
+
     EXPECTED_CALL(free(IGNORED_PTR_ARG));
 }
 
