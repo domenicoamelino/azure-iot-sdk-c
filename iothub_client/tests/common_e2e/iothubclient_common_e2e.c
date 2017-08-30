@@ -502,6 +502,7 @@ D2C_MESSAGE_HANDLE client_create_and_send_d2c(IOTHUB_CLIENT_HANDLE iotHubClientH
     }
     else
     {
+        msgHandle = NULL;
         ASSERT_FAIL("Unknown test message creation mechanism specified");
     }
     ASSERT_IS_NOT_NULL_WITH_MSG(msgHandle, "Could not create the D2C message to be sent");
