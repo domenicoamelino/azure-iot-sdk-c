@@ -379,6 +379,21 @@ int create_amqp_message_data(IOTHUB_MESSAGE_HANDLE message_handle, BINARY_DATA* 
         result = RESULT_OK;
     }
 
+    if (NULL != data_value)
+    {
+        amqpvalue_destroy(data_value);
+    }
+
+    if (NULL != application_properties)
+    {
+        amqpvalue_destroy(application_properties);
+    }
+
+    if (NULL != message_properties)
+    {
+        amqpvalue_destroy(message_properties);
+    }
+
     return result;
 }
 

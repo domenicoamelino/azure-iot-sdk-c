@@ -219,6 +219,13 @@ static void set_exp_calls_for_create_amqp_message_data(size_t number_of_app_prop
     }
 
     STRICT_EXPECTED_CALL(amqpvalue_encode(TEST_AMQP_VALUE, IGNORED_PTR_ARG, IGNORED_PTR_ARG));
+
+    STRICT_EXPECTED_CALL(amqpvalue_destroy(TEST_AMQP_VALUE));
+    if (number_of_app_properties > 0)
+    {
+        STRICT_EXPECTED_CALL(amqpvalue_destroy(TEST_AMQP_VALUE));
+    }
+    STRICT_EXPECTED_CALL(amqpvalue_destroy(TEST_AMQP_VALUE));
 }
 
 static void set_exp_calls_for_IoTHubMessage_CreateFromUamqpMessage(size_t number_of_properties, bool has_message_id, bool has_correlation_id, bool has_properties)
@@ -699,7 +706,10 @@ TEST_FUNCTION(message_create_from_iothub_message_BYTEARRAY_return_errors_fails)
              (i == 8) || // amqpvalue_destroy
              (i == 19) || // amqpvalue_destroy
              (i == 21) || // amqpvalue_destroy
-             (i == 22) // amqpvalue_destroy
+             (i == 22) || // amqpvalue_destroy
+             (i == 32) || // amqpvalue_destroy
+             (i == 33) || // amqpvalue_destroy
+             (i == 34) // amqpvalue_destroy
            )
         {
             continue; // these lines have functions that do not return anything (void).
@@ -761,7 +771,10 @@ TEST_FUNCTION(message_create_from_iothub_message_STRING_return_errors_fails)
              (i == 8) || // amqpvalue_destroy
              (i == 19) || // amqpvalue_destroy
              (i == 21) || // amqpvalue_destroy
-             (i == 22) // amqpvalue_destroy
+             (i == 22) || // amqpvalue_destroy
+             (i == 32) || // amqpvalue_destroy
+             (i == 33) || // amqpvalue_destroy
+             (i == 34) // amqpvalue_destroy
            )
         {
             continue; // these lines have functions that do not return anything (void).
