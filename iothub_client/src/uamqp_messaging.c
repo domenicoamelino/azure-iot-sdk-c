@@ -307,7 +307,7 @@ static int create_data_to_encode(IOTHUB_MESSAGE_HANDLE messageHandle, AMQP_VALUE
     
         data bin_data;
         bin_data.bytes = (const unsigned char *)messageContent;
-        bin_data.length = messageContentSize;
+        bin_data.length = (uint32_t)messageContentSize;
 
         if (NULL == (*data_value = amqpvalue_create_data(bin_data)))
         {
